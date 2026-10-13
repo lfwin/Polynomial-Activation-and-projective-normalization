@@ -21,7 +21,8 @@ accuracy in $\refEpochSec$\,s per epoch ($\refTotalSec$\,s total).
 
 \subsection{Data}
 
-\paragraph{MNIST.} $60{,}000$ training and $10{,}000$ test grayscale images,
+\paragraph{MNIST.} $60{,}000$ training and $10{,}000$ test grayscale
+images~\citep{lecun1998gradient},
 $28 \times 28$, flattened to $784$ dimensions with the raw pixel scale in
 $[0,1]$ (only \texttt{ToTensor}, no mean-variance standardization --- the
 reference pipeline uses none, and adding one would change the effective scale
@@ -67,8 +68,11 @@ family.
 \subsection{Models and hyperparameters}
 
 Unless stated otherwise, the configuration is depth $L = 10$ linear layers,
-hidden width $H = 128$, AdamW with learning rate $10^{-3}$ and weight decay
-$10^{-4}$, cosine-annealed over the run, gradient-norm clipping at $5.0$,
+hidden width $H = 128$, AdamW~\citep{loshchilov2019decoupled} with learning
+rate $10^{-3}$ (following
+Adam~\citep{kingma2015adam}) and weight decay
+$10^{-4}$, cosine-annealed over the run, gradient-norm
+clipping at $5.0$~\citep{pascanu2013difficulty},
 batch size $128$, and $10$ epochs. The learning rate, weight decay, clipping
 threshold, batch size and scheduler all match the reference script, so the
 reference row of each table is a faithful baseline rather than a re-tuned one.

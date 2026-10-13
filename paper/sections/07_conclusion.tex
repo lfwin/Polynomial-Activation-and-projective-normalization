@@ -64,7 +64,7 @@ the fixed cubic while costing appreciably more per step, a useful follow-up
 would ask under what data regimes --- if any --- that extra flexibility is
 worth its cost.
 
-\paragraph{Reproducibility.}
+\paragraph{Reproducibility and code availability.}
 Every number in this paper is produced by the harness in
 \texttt{experiments/} and injected into the text as a \LaTeX{} macro by
 \texttt{make\_macros.py}; the tables and figures are emitted by
@@ -72,6 +72,18 @@ Every number in this paper is produced by the harness in
 printed precision of its own logs, by the harness configured with a depth-ten
 projective polynomial and no separate normalization
 (Table~\ref{tab:ref}).
+
+The complete code, the per-configuration JSON logs behind every table and
+figure, and the sources of this paper are released under the MIT license:
+
+\begin{center}
+\url{https://github.com/lfwin/Polynomial-Activation-and-projective-normalization}
+\end{center}
+
+\noindent
+The repository contains the harness (\texttt{experiments/}), the analysis and
+macro-generation scripts, the raw results, and the \LaTeX{} sources of this
+document; the README describes how to regenerate every result from scratch.
 
 \input{tables/tab_ref}
 

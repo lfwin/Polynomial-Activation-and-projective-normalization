@@ -26,9 +26,11 @@ maintaining activation scale across depth}.
 
 \subsection{Why the projection substitutes for BatchNorm and LayerNorm}
 
-BatchNorm normalizes using statistics estimated across the batch;
+BatchNorm normalizes using statistics estimated across the
+batch~\citep{ioffe2015batch};
 LayerNorm normalizes using statistics estimated across features within each
-example. Both therefore add a learned affine transformation and a pair of
+example~\citep{ba2016layer}. Both therefore add a learned affine
+transformation and a pair of
 statistics buffers per layer, and both change the effective function computed
 by the network in a data-dependent way. The $\ell_2$ projection does neither:
 it rescales each activation vector to unit norm, which is exactly a

@@ -47,8 +47,10 @@ probe separately.
   so the forward signal cannot blow up; the projection then bounds the
   \emph{norm} of each hidden activation at exactly $1$.
 \item \emph{No statistics, no state.} $\pi$ has no parameters and no running
-  buffers. Unlike BatchNorm it does not couple samples, and unlike both
-  BatchNorm and LayerNorm it has no learned affine (`scale and shift'')
+  buffers. Unlike BatchNorm~\citep{ioffe2015batch} it does not couple samples,
+  and unlike both
+  BatchNorm and LayerNorm~\citep{ba2016layer} it has no learned affine
+  (``scale and shift'')
   parameters, so it changes the geometry of the representation without adding
   a single degree of freedom.
 \item \emph{Radial invariance.} Because $\pi$ identifies $y$ with $y/\lVert y
@@ -77,9 +79,12 @@ elementwise.
 \paragraph{Pointwise.}
 Identity (a linear control), the classical saturating $\tanh(z)$, and the
 three non-saturating activations that current large language models use in
-practice: $\operatorname{ReLU}(z) = \max(0,z)$, GELU $z\Phi(z)$ with $\Phi$ the
-standard normal CDF (``exact'', not the tanh approximation), and SiLU
-$z\sigma(z)$. We deliberately restrict the pointwise family to these, rather
+practice: $\operatorname{ReLU}(z) = \max(0,z)$~\citep{glorot2011deep}, GELU
+$z\Phi(z)$ with $\Phi$ the
+standard normal CDF (``exact'', not the tanh
+approximation)~\citep{hendrycks2016gaussian}, and SiLU
+$z\sigma(z)$~\citep{elfwing2018sigmoid}. We deliberately restrict the pointwise
+family to these, rather
 than sweeping the many historical variants (LeakyReLU, ELU, SELU, Softplus,
 Mish, sinusoidal), because none of those appears in a current frontier
 language model; the study is meant to state where a polynomial activation
@@ -90,7 +95,7 @@ makes the contribution of nonlinearity itself measurable.
 \paragraph{Polynomial.}
 The fixed truncated cubic of Eq.~\eqref{eq:poly}, with the order and
 coefficient treated as hyperparameters, and three \emph{learnable} polynomial
-activations:
+activations~\citep{liu2024kan}:
 \begin{align}
 f_{\text{Leg}}(z) &= g \sum_{k=0}^{K} a_k L_k\!\left(\frac{\tilde{z}}{B}\right),
 \qquad
@@ -119,11 +124,13 @@ A gated unit replaces the pointwise map by
 \label{eq:glu}
 \end{equation}
 with two matrices $W_v, W_g$ and a gate nonlinearity $\sigma$. We use the two
-gates that current language models deploy --- $\sigma = \mathrm{SiLU}$
+gates that current language models deploy~\citep{shazeer2020glu} ---
+$\sigma = \mathrm{SiLU}$
 (SwiGLU, as in Llama and PaLM) and $\sigma = \mathrm{GELU}$ (GeGLU) --- and,
 as the paper's polynomial counterpart, $\sigma = z + \lambda z^{3}$
 (PolyGLU). Gated units with historical gate nonlinearities (ReGLU, SELU-GLU,
-Mish-GLU, Tanh-GLU) and the fully degenerate \emph{bilinear} unit ($\sigma =
+Mish-GLU, Tanh-GLU)
+and the fully degenerate \emph{bilinear} unit ($\sigma =
 \operatorname{Id}$) are omitted for the same reason as the historical
 pointwise activations: they are not what is deployed, and including them
 would broaden the failure-mode survey without changing the comparison the

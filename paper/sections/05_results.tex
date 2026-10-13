@@ -135,8 +135,9 @@ order $10^{8}$. A product nonlinearity without normalisation is unstable in
 \emph{both} directions, and MNIST lands on the side that silently dies.
 
 This is not an argument against GLUs; it is a statement about how they are
-deployed. Transformers use SwiGLU and its relatives strictly inside blocks
-that already normalise, and Table~\ref{tab:glunorm} shows that restoring any
+deployed. Transformers use SwiGLU and its relatives strictly inside
+blocks that already normalise~\citep{shazeer2020glu}, and
+Table~\ref{tab:glunorm} shows that restoring any
 normalisation rescues them: with LayerNorm the gated variants average
 $\gluLayerMean\%$. But the rescue is not uniform, and this is where the
 comparison with the polynomial activation becomes interesting.
@@ -199,7 +200,8 @@ than separately.
 \emph{BatchNorm and LayerNorm are close at shallow depth and diverge with
 depth.} At $L=10$ BatchNorm ($\polyBatchAcc\%$) is slightly ahead of
 LayerNorm ($\polyLayerAcc\%$) for the polynomial, consistent with the
-classical result that batch statistics regularise small-batch training. The
+classical result that batch statistics regularise small-batch
+training~\citep{ioffe2015batch,santurkar2018does}. The
 gap inverts once depth grows: Table~\ref{tab:depth} and
 Figure~\ref{fig:depth} sweep $L\in\{2,\dots,20\}$, where the
 BatchNorm variant falls to $\LtwentyPolybnAcc\%$ at $L=20$ while the

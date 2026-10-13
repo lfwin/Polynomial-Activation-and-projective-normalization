@@ -1,12 +1,17 @@
 \section{Introduction}
 \label{sec:intro}
 
-Depth is what makes a neural network expressive, and it is also what makes it
-hard to train. Two families of design decisions carry most of the weight in
+Depth is what makes a neural network expressive
+\citep{hornik1989multilayer,cybenko1989approximation,mhaskar2017deep,telgarsky2016benefits},
+and it is also what makes it hard to train
+\citep{glorot2010understanding,he2015delving,poole2016exponential,schoenholz2017deep}.
+Two families of design decisions carry most of the weight in
 keeping a deep stack trainable: the \emph{nonlinearity} applied between affine
 maps, and the \emph{normalization} applied to the activations. The modern
-defaults are well known --- ReLU or GELU for the nonlinearity, BatchNorm or
-LayerNorm for the normalization --- but the space of alternatives is far from
+defaults are well known --- ReLU~\citep{glorot2011deep,maas2013rectifier} or
+GELU~\citep{hendrycks2016gaussian} for the nonlinearity, and
+BatchNorm~\citep{ioffe2015batch} or LayerNorm~\citep{ba2016layer} for the
+normalization --- but the space of alternatives is far from
 exhausted, and the two decisions interact in ways that a single-axis ablation
 cannot expose.
 
@@ -34,7 +39,8 @@ which in a deep stack bounds the growth of the forward signal and, by the
 chain rule, the growth of the backward signal. It also inherits the
 projective-geometric intuition that motivates a body of work on the algebraic
 geometry of linear networks, where the loss landscape of a deep stack is
-studied through the projective geometry of its critical points.
+studied through the projective geometry of its critical
+points~\citep{xiuyi2021landscape,saxe2014exact,dauphin2014identifying}.
 
 The difficulty with Eq.~\eqref{eq:projective-poly} as a scientific object is
 that it bundles four separate claims:
@@ -59,12 +65,15 @@ We organize the study around four reference families.
 \begin{itemize}
 \item \emph{Pointwise activations.} Identity (linear control), the classical
   saturating tanh, and the three non-saturating activations that current
-  frontier language models actually deploy: ReLU, GELU and SiLU. We
+  frontier language models actually deploy: ReLU~\citep{glorot2011deep}, GELU
+  \citep{hendrycks2016gaussian} and SiLU~\citep{elfwing2018sigmoid}.
+  We
   deliberately do not re-audit the historical zoo (sigmoid, LeakyReLU, ELU,
-  SELU, Softplus, Mish, sinusoidal): none of those appears in a current
+  SELU, Softplus, Mish, sinusoidal)~\citep{maas2013rectifier,clevert2015fast,klambauer2017self,misra2019mish,sitzmann2020implicit};
+  none of those appears in a current
   large model, and our question is where a polynomial activation stands
   relative to what is deployed, not how the zoo ranks.
-\item \emph{Gated linear units.} SwiGLU and GeGLU --- the shapes used in
+\item \emph{Gated linear units.} SwiGLU and GeGLU~\citep{shazeer2020glu,dauphin2017language} --- the shapes used in
   current large language models --- plus a polynomial-gated PolyGLU, which is
   the natural way to carry the paper's cubic into a gate. We include gating
   because ``the activation question'' in modern practice is often really a
@@ -72,10 +81,11 @@ We organize the study around four reference families.
   of one, so we match parameter count against the pointwise networks rather
   than comparing differently sized models.
 \item \emph{Learnable polynomial activations.} A Legendre series, a Chebyshev
-  series, and a KAN-style cubic B-spline. If a fixed cubic is useful, the
+  series, and a KAN-style cubic B-spline~\citep{liu2024kan}. If a fixed cubic is useful, the
   natural question is whether letting the polynomial be learned improves on
   it; this family answers that question directly.
-\item \emph{Normalization layers.} BatchNorm, LayerNorm, RMSNorm, and the
+\item \emph{Normalization layers.} BatchNorm~\citep{ioffe2015batch},
+  LayerNorm~\citep{ba2016layer}, RMSNorm~\citep{zhang2019root}, and the
   parameter-free $\ell_2$ projection, each placed both before and after the
   nonlinearity, and each crossed with both a rectified and a polynomial
   activation.
