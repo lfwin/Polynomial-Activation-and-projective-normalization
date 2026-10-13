@@ -7,9 +7,12 @@ of What Makes Deep Fully-Connected Networks Trainable*
 **Author:** Xiuyi Yang — fwinlee@gmail.com
 
 This repository contains the complete, self-contained experimental artifact for the paper:
-a unified training harness, all 301 experiment configurations, every raw result file, the
-analysis code that turns raw JSON into the paper's tables and figures, and the LaTeX source.
-Every number in the paper is generated from the raw results — none is typed by hand.
+a unified training harness, all 301 experiment configurations, every raw result file, and the
+analysis code that turns raw JSON into tables, figures and every number that appears in the
+paper. Every number is generated from the raw results — none is typed by hand.
+
+The paper's own LaTeX sources and build products are deliberately **not** part of this
+repository; what is published here is the artifact needed to regenerate them.
 
 ---
 
@@ -28,27 +31,39 @@ benefit is realised only once a normalization layer is in place.
 
 ### Headline results (all reproduced from `experiments/*/**.json`)
 
-| Setting (depth 10, width 128, MNIST) | Test accuracy |
-|---|---|
-| Identity (no activation), no norm | 92.71 |
-| Polynomial, no norm | 94.34 |
-| **Polynomial + projective normalization** | **95.93** |
-| ReLU (best mainstream) | 98.07 |
-| GELU | 98.20 |
-| SiLU | 98.13 |
+Depth 10, width 128, MNIST. Every number below is reproduced from `experiments/*/*.json`.
 
-- **Activation band is narrow.** The best mainstream activations sit within **0.13 points**
-  of each other — the choice among them matters little.
+| Configuration | Test accuracy (%) |
+|---|---|
+| Identity, no norm (floor) | 92.71 |
+| GELU (best activation) | 98.20 |
+| SiLU | 98.13 |
+| ReLU (best mainstream, closest rival) | 98.07 |
+| tanh | 97.79 |
+| Poly `z + λz³`, no norm | 94.34 |
+| **Poly + projective `ℓ₂` normalization** | **95.93** |
+| Poly + BatchNorm | 96.75 |
+| Poly + LayerNorm | 96.29 |
+| Poly + RMSNorm | 96.29 |
+
+- **The polynomial alone is not competitive.** The bare cubic trails GELU by **3.86 points**
+  at equal parameter count (`\polyNoneToBest`), and the projective normalization recovers
+  **1.59** of them (`\polyGap`).
 - **Normalization is what unlocks the polynomial.** Projective normalization adds
-  **+1.59 points** to the polynomial activation, but **−0.19 points** to ReLU: opposite in
-  sign and an order of magnitude apart, i.e. it is a *polynomial-specific* effect.
-- **Gated units are useless without normalization.** SwiGLU/GEGLU/poly-GLU all collapse to
-  chance (11.35%) when run bare; with LayerNorm they recover to ~97.98%.
-- **Learnable polynomials win.** A B-spline activation with BatchNorm reaches **98.36%**,
-  above GELU's 98.20%.
-- **Depth.** Projective normalization drives the depth behaviour, not the polynomial: at
-  depth 30 polynomial+projective (94.10) is level with ReLU (94.39); at depth 50 both
-  collapse (11.35%).
+  **+1.59 points** to the polynomial activation but **−0.19 points** to ReLU: opposite in
+  sign and an order of magnitude apart, i.e. a *polynomial-specific* effect.
+- **The projection pins the activation scale.** It holds the per-layer activation norm at
+  **1×** its initial value where ReLU's decays to **0.048×** and a gated unit's collapses to
+  **0** — the mechanism behind the +1.59.
+- **Depth is where it matters.** At depth 30 the projected polynomial lands **0.29 points**
+  below ReLU, at depth 10 it trails by **2.14 points**; without the projection the polynomial
+  collapses to chance (10.28%) at depth 30. At depth 50 *every* design collapses — Poly and
+  Poly+`ℓ₂` at 10.28% and 11.35%, and even BatchNorm retains only 44.64%.
+- **Gated units need normalization.** SwiGLU/GeGLU/PolyGLU collapse to chance (**11.35%**,
+  a **86.6-point** gap) when run bare; with normalization they recover to **97.98%**.
+- **Learnable bases buy nothing.** A B-spline activation with BatchNorm reaches **98.36%**,
+  but the learned bases show **no consistent gain** over the fixed cubic at equal depth and
+  width, while costing appreciably more per step.
 - **Faithful reproduction.** The reference configuration reproduces the original standalone
   script bit-for-bit: **96.86%** test accuracy, matching `results_10layers/results.json`.
 
@@ -60,8 +75,7 @@ benefit is realised only once a normalization layer is in place.
 .
 ├── train_projective_poly_mnist_10layers.py   # original standalone script (reference point)
 ├── results_10layers/results.json             # its published result: 96.86%
-├── run.sh / run_experiments.sh               # conveniences wrappers
-├── make_paper.sh / finish_paper.sh           # one-shot regenerate-tables-and-build-paper
+├── run.sh / run_experiments.sh               # wrapper for a single training run
 ├── experiments/
 │   ├── harness.py            # the unified training/eval harness (model, data, metrics)
 │   ├── run_all.py            # the full 301-config experiment grid + worker orchestration
@@ -72,14 +86,13 @@ benefit is realised only once a normalization layer is in place.
 │   ├── status.sh             # progress overview of the result directory
 │   ├── logs/                 # raw stdout of the experiment runs (evidence trail)
 │   └── <group>/*.json        # 301 raw result records, one file per configuration
-└── paper/
-    ├── main.tex / refs.bib / main.bbl        # LaTeX source (arXiv-style, single column)
-    ├── macros.tex                            # 188 generated number macros
-    ├── sections/*.tex                        # 01_intro .. 07_conclusion
-    ├── tables/*.tex                          # generated tables
-    ├── figures/*.pdf                         # generated figures
-    └── main.pdf                              # compiled paper (22 pages)
+└── (paper/ — built locally, not tracked; see "Reproducing" below)
 ```
+
+Note the three scripts that reference `paper/` write into it as a build-tree, not a
+source tree: `analyze.py` and `make_macros.py` create `paper/tables`, `paper/figures`
+and `paper/macros.tex` from the raw JSON, so those directories are generated rather than
+shipped. `paper/` is listed in `.gitignore`.
 
 Result groups under `experiments/`:
 
@@ -148,17 +161,14 @@ python experiments/verify_fidelity.py          # expect 96.86%
 python experiments/run_all.py --group all --workers 8
 python experiments/run_all.py --list           # inspect groups without running
 
-# 3. Regenerate every table, figure, and number macro from the raw JSON
+# 3. Regenerate every table, figure, and number macro from the raw JSON.
+#    These write into paper/ (created if absent, git-ignored).
 python experiments/analyze.py                  # -> paper/tables, paper/figures
 python experiments/make_macros.py --check      # -> paper/macros.tex + consistency check
-
-# 4. Build the paper
-cd paper && pdflatex main && bibtex main && pdflatex main && pdflatex main
-# or, from the repo root, the whole pipeline in one shot:
-./make_paper.sh
 ```
 
-`make_paper.sh` runs steps 3 and 4 together and rebuilds `paper/main.pdf`.
+Step 3 needs no retraining: the 301 raw JSON records are committed, so all tables,
+figures and number macros can be regenerated from a clean clone.
 
 The full grid is dominated by single-threaded training runs executed in parallel worker
 processes; `--workers 8` is a safe default on a 20-core machine. To re-run one group only

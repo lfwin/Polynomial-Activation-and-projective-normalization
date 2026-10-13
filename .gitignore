@@ -11,15 +11,11 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 
-# LaTeX 中间产物（保留 main.pdf / main.bbl）
-paper/*.aux
-paper/*.log
-paper/*.out
-paper/*.toc
-paper/*.blg
-paper/*.fls
-paper/*.fdb_latexmk
-paper/*.synctex.gz
+# 论文构建树（LaTeX 源码、生成物、arXiv 打包件）——仅本地保留，不进入公开仓库。
+# paper/ 由 experiments/analyze.py 与 experiments/make_macros.py 在本地生成。
+paper/
+make_paper.sh
+finish_paper.sh
 
 # 编辑器 / 系统
 .vscode/
