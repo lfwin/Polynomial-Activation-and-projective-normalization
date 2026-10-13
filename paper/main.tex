@@ -36,37 +36,33 @@ An Empirical Study of What Makes Deep\\ Fully-Connected Networks Trainable}
 \input{macros}
 
 \begin{abstract}
-Two ingredients decide whether a deep network trains: the \emph{nonlinearity}
-that breaks linearity, and the \emph{normalization} that keeps its signal in
-range. This paper studies both, and their interaction, through the lens of a
-single construction: polynomial activations paired with \emph{projective}
-($\ell_2$) normalization. We take as our starting point a ten-layer
-fully-connected network whose activation is the projective polynomial
-$f(z) = z + \lambda z^{3}$, whose output is projected onto the unit sphere.
-We separate the two mechanisms that this construction entangles --- the
-\emph{polynomial nonlinearity} and the \emph{projective normalization} --- and
-evaluate each against the activations and normalizers that current large
-language models actually use (ReLU, GELU, SiLU, the gated SwiGLU and GeGLU;
-BatchNorm, LayerNorm, RMSNorm), plus classical controls (tanh, identity) and
-learnable polynomial bases (Legendre, Chebyshev, KAN-style cubic B-splines).
-Experiments span MNIST and eight synthetic datasets, depths from 2 to 50
-layers, polynomial orders 2--5, $\lambda \in [10^{-3}, 10^{-1}]$, and five
-seeds. Three results emerge, all of them about the polynomial--normalization
-pair rather than about either alone. First, the polynomial nonlinearity is
-\emph{not} competitive on raw accuracy: it trails GELU by $\polyNoneToBest$
-points at equal parameter count. Second, the projective normalization recovers
-$\polyGap$ of those points with \emph{zero} learned parameters, and it does so
-by a mechanism we can measure --- it pins the per-layer activation norm at
-unity (\actNormPolyRatio$\times$ its initial value) where ReLU's decays to
+What makes a deep network train? Its \emph{nonlinearity}, and the
+\emph{normalization} that keeps the signal in range. We study both, and their
+interaction, through one construction: polynomial activations paired with
+\emph{projective} ($\ell_2$) normalization. Starting point: a ten-layer
+fully-connected network with activation $f(z) = z + \lambda z^{3}$, projected
+onto the unit sphere. We separate the \emph{polynomial nonlinearity} from the
+\emph{projective normalization} and evaluate each against the activations and
+normalizers that current large language models use (ReLU, GELU, SiLU, the gated
+SwiGLU and GeGLU; BatchNorm, LayerNorm, RMSNorm), plus classical controls
+(tanh, identity) and learnable polynomial bases (Legendre, Chebyshev, KAN-style
+cubic B-splines). Experiments span MNIST and eight synthetic datasets, depths
+from 2 to 50 layers, polynomial orders 2--5, $\lambda \in [10^{-3}, 10^{-1}]$,
+and five seeds. Three results emerge, all about the pair, not either alone.
+First, the polynomial nonlinearity is \emph{not} competitive on raw accuracy:
+it trails GELU by \polyNoneToBest points at equal parameter count. Second, the
+projective normalization recovers \polyGap of those points with \emph{zero}
+learned parameters --- it pins the per-layer activation norm at its initial
+value (\actNormPolyRatio$\times$) where ReLU's decays to
 \actNormReluRatio$\times$ and a gated unit's collapses to \actNormSwiRatio.
-Third, this same normalization is what makes depth reachable: the projected
-polynomial tracks ReLU to within \LtenProjVsReluPt\ points at depth ten and
-\LthirtyProjVsReluPt\ points at depth thirty, whereas an unnormalized
-polynomial collapses to chance at depth \dThirty; and a gated unit without
-normalization fails outright while the same unit trains at \gluLayerMean\%
-once normalization is added. We report the failure boundary honestly: at depth
-\dFifty\ both designs collapse to $\approx$\LfiftyCollapseAcc\%, so projective
-normalization buys depth, not unbounded depth.
+Third, the same normalization makes depth reachable: the projected polynomial
+tracks ReLU to within \LtenProjVsReluPt points at depth ten and
+\LthirtyProjVsReluPt points at depth thirty, whereas an unnormalized polynomial
+collapses to chance at depth \dThirty; and a gated unit without normalization
+fails outright while the same unit trains at \gluLayerMean\% once normalization
+is added. We report the failure boundary honestly: at depth \dFifty\ both
+designs collapse to about \LfiftyCollapseAcc\%, so projective normalization
+buys depth, not unbounded depth.
 \end{abstract}
 
 \input{sections/01_intro}
