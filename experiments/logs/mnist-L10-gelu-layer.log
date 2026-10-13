@@ -1,0 +1,11 @@
+[mnist/rings/gelu-d3-lam0.01/norm=layer/L10/s42] ep01/10 tr=91.69% te=95.85% (7s)
+[mnist/rings/gelu-d3-lam0.01/norm=layer/L10/s42] ep02/10 tr=96.38% te=96.74% (13s)
+[mnist/rings/gelu-d3-lam0.01/norm=layer/L10/s42] ep03/10 tr=97.58% te=97.02% (19s)
+[mnist/rings/gelu-d3-lam0.01/norm=layer/L10/s42] ep04/10 tr=98.13% te=96.97% (26s)
+[mnist/rings/gelu-d3-lam0.01/norm=layer/L10/s42] ep05/10 tr=98.63% te=97.28% (32s)
+[mnist/rings/gelu-d3-lam0.01/norm=layer/L10/s42] ep06/10 tr=99.15% te=97.63% (38s)
+[mnist/rings/gelu-d3-lam0.01/norm=layer/L10/s42] ep07/10 tr=99.51% te=97.90% (45s)
+[mnist/rings/gelu-d3-lam0.01/norm=layer/L10/s42] ep08/10 tr=99.78% te=98.03% (51s)
+[mnist/rings/gelu-d3-lam0.01/norm=layer/L10/s42] ep09/10 tr=99.94% te=98.17% (58s)
+[mnist/rings/gelu-d3-lam0.01/norm=layer/L10/s42] ep10/10 tr=99.96% te=98.18% (64s)
+=== mnist-L10-gelu-layer_mnist-rings-gelu-d3-lam0.01-layer-L10-H128-lr0.001-e10-s42: test_acc=98.18% params=236170 time=63.8s

@@ -1,0 +1,11 @@
+[mnist/rings/silu-d3-lam0.01/norm=rms/L10/s42] ep01/10 tr=92.00% te=96.24% (3s)
+[mnist/rings/silu-d3-lam0.01/norm=rms/L10/s42] ep02/10 tr=96.58% te=96.91% (5s)
+[mnist/rings/silu-d3-lam0.01/norm=rms/L10/s42] ep03/10 tr=97.59% te=96.84% (8s)
+[mnist/rings/silu-d3-lam0.01/norm=rms/L10/s42] ep04/10 tr=98.17% te=97.08% (11s)
+[mnist/rings/silu-d3-lam0.01/norm=rms/L10/s42] ep05/10 tr=98.66% te=97.73% (13s)
+[mnist/rings/silu-d3-lam0.01/norm=rms/L10/s42] ep06/10 tr=99.08% te=97.87% (16s)
+[mnist/rings/silu-d3-lam0.01/norm=rms/L10/s42] ep07/10 tr=99.42% te=97.95% (18s)
+[mnist/rings/silu-d3-lam0.01/norm=rms/L10/s42] ep08/10 tr=99.74% te=98.23% (21s)
+[mnist/rings/silu-d3-lam0.01/norm=rms/L10/s42] ep09/10 tr=99.88% te=98.37% (24s)
+[mnist/rings/silu-d3-lam0.01/norm=rms/L10/s42] ep10/10 tr=99.94% te=98.38% (26s)
+=== mnist-L10-silu-rms_mnist-rings-silu-d3-lam0.01-rms-L10-H128-lr0.001-e10-s42: test_acc=98.38% params=235018 time=26.1s

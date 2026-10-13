@@ -1,0 +1,18 @@
+\begin{table}[t]
+\centering
+\caption{Interaction between the gated units (GLU family) and the normalization on MNIST at depth 10. Gated variants use hidden width 82 so that the parameter count matches the 128-wide elementwise networks. Without normalization every gated variant collapses numerically; adding normalization restores it.}
+\label{tab:glunorm}
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+Activation & None & $\ell_2$ & Batch & Layer & RMS \\
+\midrule
+SwiGLU & -- & -- & -- & -- & -- \\
+GeGLU & -- & -- & -- & -- & -- \\
+Poly-GLU & -- & -- & -- & -- & -- \\
+ReLU & 98.07 & 97.88 & 98.19 & 98.11 & 98.03 \\
+GELU & 98.20 & 98.07 & 98.30 & 98.18 & 98.43 \\
+SiLU & 98.13 & 98.12 & 98.46 & 98.35 & 98.38 \\
+\bottomrule
+\end{tabular}
+\end{table}

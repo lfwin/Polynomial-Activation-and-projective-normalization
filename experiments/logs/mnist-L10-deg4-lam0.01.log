@@ -1,0 +1,11 @@
+[mnist/rings/poly-d4-lam0.01/norm=l2/L10/s42] ep01/10 tr=87.17% te=91.33% (4s)
+[mnist/rings/poly-d4-lam0.01/norm=l2/L10/s42] ep02/10 tr=91.79% te=92.96% (7s)
+[mnist/rings/poly-d4-lam0.01/norm=l2/L10/s42] ep03/10 tr=93.57% te=94.07% (11s)
+[mnist/rings/poly-d4-lam0.01/norm=l2/L10/s42] ep04/10 tr=94.48% te=94.01% (15s)
+[mnist/rings/poly-d4-lam0.01/norm=l2/L10/s42] ep05/10 tr=95.15% te=94.93% (18s)
+[mnist/rings/poly-d4-lam0.01/norm=l2/L10/s42] ep06/10 tr=95.75% te=95.77% (22s)
+[mnist/rings/poly-d4-lam0.01/norm=l2/L10/s42] ep07/10 tr=96.26% te=95.60% (26s)
+[mnist/rings/poly-d4-lam0.01/norm=l2/L10/s42] ep08/10 tr=96.71% te=95.95% (29s)
+[mnist/rings/poly-d4-lam0.01/norm=l2/L10/s42] ep09/10 tr=96.97% te=96.16% (33s)
+[mnist/rings/poly-d4-lam0.01/norm=l2/L10/s42] ep10/10 tr=97.23% te=96.20% (37s)
+=== mnist-L10-deg4-lam0.01_mnist-rings-poly-d4-lam0.01-l2-L10-H128-lr0.001-e10-s42: test_acc=96.20% params=233866 time=36.8s

@@ -1,0 +1,22 @@
+\begin{table}[t]
+\centering
+\caption{Activations on MNIST at depth 10 (128 hidden units, AdamW, 10 epochs, seed 42, CPU, no normalization; gated variants use hidden width 82 for parameter parity).}
+\label{tab:activation}
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+Activation & Params & Train acc.\ & Test acc.\ & Test loss & s/epoch \\
+\midrule
+GELU & 233,866 & \textbf{99.88} & \textbf{98.20} & 0.0851 & 2.5 \\
+SiLU & 233,866 & 99.70 & 98.13 & 0.0814 & 2.3 \\
+ReLU & 233,866 & 99.90 & 98.07 & 0.0908 & 6.5 \\
+Tanh & 233,866 & 99.74 & 97.79 & 0.0803 & 1.6 \\
+Poly + $\ell_2$ proj. & 233,866 & 96.98 & 95.93 & 0.1374 & 4.7 \\
+Poly $z+\lambda z^3$ & 233,866 & 95.36 & 94.34 & 0.2042 & 2.7 \\
+Identity & 233,866 & 93.42 & 92.71 & 0.2658 & 2.2 \\
+SwiGLU & 238,466 & 11.24 & 11.35 & 2.3010 & 4.9 \\
+GeGLU & 238,466 & 11.24 & 11.35 & 2.3010 & 5.0 \\
+Poly-GLU & 238,466 & 11.24 & 11.35 & 2.3010 & 19.4 \\
+\bottomrule
+\end{tabular}
+\end{table}

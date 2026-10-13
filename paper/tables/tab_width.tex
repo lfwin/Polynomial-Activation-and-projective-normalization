@@ -1,0 +1,15 @@
+\begin{table}[t]
+\centering
+\caption{Effect of the hidden width on the test accuracy (MNIST, depth 10). The polynomial row is the projective polynomial ($z+\lambda z^{3}$ followed by the $\ell_2$ projection); in this harness that is identical to \texttt{poly\_proj}.}
+\label{tab:width}
+\small
+\begin{tabular}{lrrr}
+\toprule
+Activation & Width 82 & Width 128 & Width 192 \\
+\midrule
+ReLU & -- & -- & -- \\
+GELU & -- & -- & -- \\
+Poly + $\ell_2$ proj. & -- & -- & -- \\
+\bottomrule
+\end{tabular}
+\end{table}

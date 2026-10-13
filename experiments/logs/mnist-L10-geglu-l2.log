@@ -1,0 +1,11 @@
+[mnist/rings/geglu-d3-lam0.01/norm=l2/L10/s42] ep01/10 tr=72.79% te=94.28% (7s)
+[mnist/rings/geglu-d3-lam0.01/norm=l2/L10/s42] ep02/10 tr=95.11% te=96.29% (14s)
+[mnist/rings/geglu-d3-lam0.01/norm=l2/L10/s42] ep03/10 tr=96.88% te=96.66% (21s)
+[mnist/rings/geglu-d3-lam0.01/norm=l2/L10/s42] ep04/10 tr=97.57% te=96.42% (29s)
+[mnist/rings/geglu-d3-lam0.01/norm=l2/L10/s42] ep05/10 tr=98.25% te=97.33% (36s)
+[mnist/rings/geglu-d3-lam0.01/norm=l2/L10/s42] ep06/10 tr=98.75% te=97.41% (43s)
+[mnist/rings/geglu-d3-lam0.01/norm=l2/L10/s42] ep07/10 tr=99.22% te=97.87% (50s)
+[mnist/rings/geglu-d3-lam0.01/norm=l2/L10/s42] ep08/10 tr=99.48% te=97.86% (57s)
+[mnist/rings/geglu-d3-lam0.01/norm=l2/L10/s42] ep09/10 tr=99.66% te=97.81% (64s)
+[mnist/rings/geglu-d3-lam0.01/norm=l2/L10/s42] ep10/10 tr=99.77% te=97.82% (71s)
+=== mnist-L10-geglu-l2_mnist-rings-geglu-d3-lam0.01-l2-L10-H82-lr0.001-e10-s42: test_acc=97.82% params=238466 time=71.0s

@@ -1,0 +1,74 @@
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{Activation functions.}
+The sigmoid and tanh activations of early multilayer perceptrons saturate, and
+their gradients vanish exponentially with depth, which is the classical
+explanation for why deep stacks were impractical before the rectifier era.
+ReLU removes saturation on the positive side and yields sparse activations;
+its variants (LeakyReLU, ELU, SELU, PReLU) address the dying-unit and
+negative-saturation issues at some cost in simplicity. Smooth alternatives
+that interpolate between the identity on the positive side and a soft
+rectifier on the negative side --- GELU and SiLU --- are now the default in
+most large-scale vision and language models, and are the activations our
+polynomial most directly competes with. We therefore restrict the pointwise
+comparison to this deployed set (ReLU, GELU, SiLU) plus tanh and the identity
+control, rather than re-auditing the historical variants.
+
+\paragraph{Polynomial and learnable activations.}
+Polynomial activations have a long history: the higher-order units of early
+connectionist models, and more recently the observation that a polynomial
+network of low degree can compute the \emph{exact} product of its inputs,
+which a ReLU network can only approximate with growing width. Learnable
+activation functions --- PReLU and its family, ``maxout'' networks, and the
+recent Kolmogorov--Arnold network (KAN) whose edges carry learnable spline
+univariates --- move the nonlinearity into the parameter set. Our study
+includes both ends of this axis: a \emph{fixed} cubic, and \emph{learnable}
+polynomials in the Legendre, Chebyshev and cubic B-spline bases.
+
+\paragraph{Gated linear units.}
+The gated linear unit multiplies a linear projection of the input by a
+gate-shaped version of it. Substituting SiLU for the sigmoid in this
+construction yields SwiGLU, which is standard in current transformer
+feed-forward blocks; GeGLU is the analogous construction with a GELU gate. A
+recurring methodological problem in this literature is that gated units carry
+roughly $3/2$ times the parameters of the ungated layer they replace, so a
+gain in accuracy can reflect capacity rather than gating. We therefore match
+parameter count explicitly and report an unmatched-width control.
+
+\paragraph{Normalization layers.}
+BatchNorm normalizes each feature using mini-batch statistics, coupling
+samples and introducing a train/eval discrepancy resolved by running
+statistics. LayerNorm normalizes per sample instead, removing the
+batch coupling; RMSNorm drops the mean-centering and is standard in current
+transformers. Weight normalization and the $\ell_2$ normalization of weight
+vectors are the parameter-free relatives of this family. The $\ell_2$
+projection in Eq.~\eqref{eq:projective-poly} belongs to that parameter-free
+subfamily, and the question we study --- whether activation \emph{projection}
+can substitute for statistical normalization --- is the natural one to ask of
+it.
+
+\paragraph{Geometry of deep networks.}
+A parallel literature studies deep networks through the geometry of their
+loss landscape: the role of saddle points in the training of linear and
+residual networks, the projective geometry of the critical locus of a linear
+network's gradient equations, and the way normalization and residual
+connections reshape that locus. Our construction is the architectural analogue
+of that reading --- identifying a sample's activation with a point of
+projective space --- and our experimental question, which component of the
+construction carries the benefit, is the empirical counterpart of asking which
+component of the geometry is responsible for trainability. We note explicitly
+that we do \emph{not} claim a theorem here: we treat the projective view as
+motivation for the architecture, and we restrict our claims to the measured
+behavior of the network.
+
+\paragraph{Empirical comparisons and reproducibility.}
+Ablation studies of activations are notoriously sensitive to uncontrolled
+factors: parameter count, initialization, learning rate, and depth interact
+with the activation choice, and a single-seed comparison at one depth is weak
+evidence. Our protocol varies each factor independently, holds the
+initialization and optimizer fixed, matches parameter count across
+architecturally different families, and repeats the headline comparison over
+several random seeds. We also report per-configuration wall-clock cost, since
+one of our findings (the poor conditioning of the unnormalized gated unit)
+is visible only in the cost profile.

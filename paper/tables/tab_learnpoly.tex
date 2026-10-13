@@ -1,0 +1,16 @@
+\begin{table}[t]
+\centering
+\caption{Learnable polynomial activations versus the fixed polynomial baselines on MNIST at depth 10, each reported at the normaliser that serves it best. Without normalisation both Legendre and Chebyshev collapse to chance (11.35\%); the B-spline and Chebyshev variants with a normaliser are competitive with the modern elementwise activations. Single seed.}
+\label{tab:learnpoly}
+\small
+\begin{tabular}{llrrrr}
+\toprule
+Activation & Norm. & Params & Train acc.\ (\%) & Test acc.\ (\%) & s/epoch \\
+\midrule
+B-spline (learned) & batch & 236,183 & 99.98 & 98.36 & 74.1 \\
+Legendre (learned) & batch & 236,178 & 99.68 & 98.03 & 19.3 \\
+Chebyshev (learned) & batch & 236,178 & 99.76 & 97.89 & 6.9 \\
+Poly $z+\lambda z^3$ & none & 233,866 & 95.36 & 94.34 & 2.7 \\
+\bottomrule
+\end{tabular}
+\end{table}

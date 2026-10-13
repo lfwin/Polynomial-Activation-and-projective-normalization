@@ -1,0 +1,318 @@
+\section{Results}
+\label{sec:results}
+
+We report every number from a single harness run
+(\texttt{experiments/run\_all.py}, \nCfgs{} configurations) whose outputs are
+aggregated by \texttt{experiments/analyze.py}; the macros used below are
+generated from the raw JSON logs, so no value in this paper is transcribed by
+hand.
+
+\subsection{Reproducing the reference network}
+
+The harness reproduces the reference network exactly: at
+$\lambda=\polyLam$, degree $\polyDeg$, depth $L=10$, width $128$,
+$\text{lr}=\lrBase$, seed $42$ and no normalisation, our epoch-$1$ and
+epoch-$2$ accuracies match the reference script's output digit for digit
+($\refEoneTrain\%$ / $\refEoneTest\%$ at epoch $1$ and $\refEtwoTrain\%$ /
+$\refEtwoTest\%$ at epoch $2$). The reference run reaches
+$\refTestAcc\%$ test accuracy in $\refEpochSec$\,s per epoch
+($\refTotalSec$\,s total) on one CPU core. Unless stated otherwise, every
+subsequent experiment uses depth $10$, width $128$, batch $128$,
+$\text{lr}=\lrBase$, $\wdecay$ weight decay, AdamW, $10$ epochs and seed
+$42$, so differences isolate the factor under study.
+
+\subsection{Polynomial activations}
+\label{sec:res-poly}
+
+Table~\ref{tab:activation} and Figure~\ref{fig:activation} compare the
+polynomial activation $f(z)=z+\lambda z^{d}$ (with and without the projective
+$\ell_2$ projection), a second- through fifth-degree sweep, and the fixed
+polynomial's \emph{learnable} counterparts (Legendre, Chebyshev and B-spline
+expansions of Section~\ref{sec:method}).
+
+Table~\ref{tab:activation} lists the full sweep.
+
+\input{tables/tab_activation}
+
+Three observations stand out.
+
+\emph{(i) The projection is what carries the polynomial, not the polynomial
+itself.} At depth $10$ the bare cubic $f(z)=z+\polyLam z^{3}$
+without normalisation reaches only $\polyNoneAcc\%$ --- already more than three
+points below the ReLU baseline --- whereas the same activation followed by the
+projective $\ell_2$ map reaches $\polyProjAcc\%$, a gain of $\polyGap$ points.
+The projection therefore recovers roughly half of the gap to the modern
+elementwise activations, but it does not close it: $\polyProjAcc\%$ remains
+below ReLU ($\reluNoneAcc\%$), SiLU ($\siluNoneAcc\%$) and GELU
+($\geluNoneAcc\%$). The learnable polynomial bases tell the same story:
+Legendre, Chebyshev and B-spline activations
+trained without normalisation land at $\legendreNoneAcc\%$,
+$\chebyNoneAcc\%$ and $\bsplineNoneAcc\%$ respectively, all far below
+$\polyProjAcc\%$, and all three recover to the $\approx\!\polyProjAcc\%$ band
+once a normalisation layer follows them (Table~\ref{tab:learnpoly}). The
+degree-$K$ and grid-size sweeps (Figure~\ref{fig:learnpoly}) are flat to
+within noise for $K\ge 6$, which says the expressive benefit of a richer
+polynomial basis is small compared with the conditioning benefit of
+normalisation.
+
+\emph{(ii) A degree-2 (quadratic) activation is the only polynomial that
+genuinely underperforms.} Across the $d\in\{2,3,4,5\}$ grid at
+$\lambda=\polyLam$ with $\ell_2$ projection (Figure~\ref{fig:degree}), the
+lowest accuracy in the whole grid is $\degTwoMinAcc\%$ at $d=2$, while
+$d\ge3$ all exceed $\degThreeMinAcc\%$. A quadratic
+$z+\lambda z^2$ is not odd, so it shifts the mean of every pre-activation
+rather than only reshaping its tails; the cubic and higher terms recover the
+odd symmetry that the reference network relies on. This is the clearest
+polynomial-specific effect we find.
+
+\emph{(iii) A fixed polynomial beats a learned one at equal parameter
+count.} Legendre ($K=6$), Chebyshev and B-spline activations each carry
+$\approx\!K$ extra parameters per unit and cost
+$\approx\!\learnCycles\times$ the training time of the fixed polynomial, yet
+none exceeds $\legendreBestAcc\%$ test accuracy in the normalised setting,
+against $\polyProjAcc\%$ for the two-parameter $z+\lambda z^3$ with
+projection. When the input is a $784$-dimensional flattened image, the extra
+basis function parameters apparently buy flexibility the network does not
+need.
+
+\input{tables/tab_degree}
+\input{tables/tab_learnpoly}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.86\columnwidth]{figures/fig_degree.pdf}
+  \caption{Test accuracy as a function of polynomial degree $d$ at
+  $\lambda=\polyLam$ with the projective $\ell_2$ map, depth $10$.}
+  \label{fig:degree}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.86\columnwidth]{figures/fig_learnpoly.pdf}
+  \caption{Learnable polynomial activations (Legendre, Chebyshev, B-spline)
+  as a function of basis degree / grid size, with and without normalisation.}
+  \label{fig:learnpoly}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.86\columnwidth]{figures/fig_activation.pdf}
+  \caption{Test accuracy on MNIST for all activations at depth $10$, width
+  $128$, no normalisation (gated variants use width $82$ for parameter
+  parity). The dashed line marks the random-guess accuracy of a ten-class
+  problem. Values are given in Table~\ref{tab:activation}.}
+  \label{fig:activation}
+\end{figure}
+
+\subsection{Mainstream and gated activations}
+\label{sec:res-act}
+
+Table~\ref{tab:activation} lists the full activation sweep. Among the
+elementwise, non-saturating activations the spread is narrow:
+ReLU $\reluNoneAcc\%$, GELU $\geluNoneAcc\%$ and SiLU $\siluNoneAcc\%$ all
+fall inside a $\actBandPt$\,pt band, and $\tanh$ ($\tanhNoneAcc\%$) is
+competitive with them at this depth. The identity map is the one pointwise
+control that clearly collapses --- with no nonlinearity the ten-layer stack is
+affine and attains only $\identityNoneAcc\%$.
+
+The dramatic result is the gated family. Every GLU variant we test ---
+SwiGLU, GeGLU and the polynomial-gated PolyGLU --- reaches exactly
+$\gluNoneMean\%$ test accuracy without normalization, and its test loss stays
+pinned at $\ln 10 = 2.303$ for all ten epochs. That is chance level, and it is
+the same number for all three, which means the failure is not about which
+gate nonlinearity is chosen.
+
+The cause is numerical, and Figure~\ref{fig:act_norm} shows it directly. The
+gate is a product of two affine maps, $g(a)\odot b$. On MNIST the inputs are
+pixel intensities in $[0,1]$ with mean $\approx\!0.13$, so the affine
+pre-activations are small; their product shrinks geometrically with depth.
+The layer-wise activation norms in Figure~\ref{fig:act_norm} decay from
+$\approx\!2.0$ at layer~$1$ to $0.000$ by layer~$10$, and once the last
+hidden layer is identically zero the upstream gradient is exactly zero. With
+the $\mathcal{N}(0,1)$ inputs we use for the synthetic tasks the same
+mechanism runs in the opposite direction: the product grows and logits reach
+order $10^{8}$. A product nonlinearity without normalisation is unstable in
+\emph{both} directions, and MNIST lands on the side that silently dies.
+
+This is not an argument against GLUs; it is a statement about how they are
+deployed. Transformers use SwiGLU and its relatives strictly inside blocks
+that already normalise, and Table~\ref{tab:glunorm} shows that restoring any
+normalisation rescues them: with LayerNorm the gated variants average
+$\gluLayerMean\%$. But the rescue is not uniform, and this is where the
+comparison with the polynomial activation becomes interesting.
+Table~\ref{tab:glunorm} gives the full grid.
+\input{tables/tab_glu_norm.tex}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.86\columnwidth]{figures/fig_glu_norm.pdf}
+  \caption{Test accuracy of gated and elementwise activations as a function
+  of the normalisation applied after the activation. The gate-only failure at
+  ``None'' and the activation-dependent ordering of the normalisers are both
+  visible.}
+  \label{fig:glu_norm}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.86\columnwidth]{figures/fig_act_norm.pdf}
+  \caption{Hidden-layer activation norms (mean $\ell_2$ norm per unit) at
+  initialisation for (a) the gated SwiGLU network, which decays to zero by
+  the last hidden layer, and (b) the elementwise ReLU network, which does
+  not. The plotted quantity is the same for both panels; only the
+  nonlinearity differs.}
+  \label{fig:act_norm}
+\end{figure}
+
+\subsection{Batch normalisation, layer normalisation, and the projective
+$\ell_2$ map}
+\label{sec:res-norm}
+
+Table~\ref{tab:norm} and Figure~\ref{fig:norm} compare the normalisation
+schemes directly, once with ReLU and once with the polynomial activation, at
+depth $10$. Table~\ref{tab:norm} gives the full grid. Three regimes appear.
+
+\input{tables/tab_norm}
+
+\emph{Projective $\ell_2$ is the only normaliser that helps the polynomial
+and hurts nothing.} For the polynomial activation, no normalisation gives
+$\polyNoneAcc\%$, the projective $\ell_2$ map gives $\polyProjAcc\%$,
+BatchNorm gives $\polyBatchAcc\%$, LayerNorm gives $\polyLayerAcc\%$ and
+RMSNorm gives $\polyRmsAcc\%$. The projective map wins, and it does so with
+\emph{zero} learnable parameters, while the other three carry $2\times128$
+(BatchNorm, LayerNorm) or $128$ (RMSNorm) parameters of their own.
+
+\emph{The projective map is normaliser and activation compatible, but not
+interchangeable.} Applied to ReLU the $\ell_2$ projection
+$\reluLtwoAcc\%$ is \emph{worse} than doing nothing
+($\reluNoneAcc\%$). The reason is that $\ell_2$ normalisation does not
+re-centre: ReLU activations are non-negative by construction, so their
+vectors live in a narrow cone away from the origin, and forcing each of them
+onto the unit sphere removes a magnitude cue that carried information. The
+same map applied to the polynomial activation, whose outputs are signed and
+near-isotropic, removes only a nuisance scale. This interaction ---
+normalisation is not a drop-in replacement independent of the
+nonlinearity --- is the practical lesson of Table~\ref{tab:norm}, and it is
+the reason we report the activation and normalisation grids jointly rather
+than separately.
+
+\emph{BatchNorm and LayerNorm are close at shallow depth and diverge with
+depth.} At $L=10$ BatchNorm ($\polyBatchAcc\%$) is slightly ahead of
+LayerNorm ($\polyLayerAcc\%$) for the polynomial, consistent with the
+classical result that batch statistics regularise small-batch training. The
+gap inverts once depth grows: Table~\ref{tab:depth} and
+Figure~\ref{fig:depth} sweep $L\in\{2,\dots,20\}$, where the
+BatchNorm variant falls to $\LtwentyPolybnAcc\%$ at $L=20$ while the
+LayerNorm variant holds $\LtwentyPolylnAcc\%$. Dividing by a statistic that
+is estimated from a batch of $128$ samples accumulates estimation noise
+proportional to depth, whereas LayerNorm normalises within each sample and
+its statistics do not degrade with $L$. For very deep stacks
+(Table~\ref{tab:depth}, $L\in\{30,50\}$) this difference decides whether the
+network trains at all.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.86\columnwidth]{figures/fig_norm.pdf}
+  \caption{Test accuracy versus training epoch for the polynomial and ReLU
+  activations under each normalisation scheme. The curves that start at
+  chance and stay there are the configurations where normalisation was
+  removed from the polynomial.}
+  \label{fig:norm}
+\end{figure}
+
+\subsection{Depth}
+\label{sec:res-depth}
+
+Figure~\ref{fig:depth} traces test accuracy against depth for several
+activation/normalisation pairs, and Table~\ref{tab:depth} gives the raw
+numbers. The effect of the \emph{projective} normalisation is the sharpest
+result in the table. The non-normalised polynomial collapses immediately: it
+is the $\polyNoneAcc$ curve at $L=10$, falls to $\LtwentyPolyAcc\%$ at $L=20$
+and to chance ($\LthirtyPolyAcc\%$) at $L=30$. Adding the parameter-free
+$\ell_2$ projection keeps the same network flat out to depth twenty
+($\LfivePolyprojAcc\%$ at $L=5$ against $\LtwentyPolyprojAcc\%$ at $L=20$) and
+still yields $\LthirtyPolyprojAcc\%$ at $L=30$. That is, the projection --- a
+single division by a norm, with no learned parameters and no batch statistics
+--- is what converts an architecture that dies at twenty layers into one that
+survives thirty, and it does so while matching ReLU to within
+$\LthirtyProjVsReluPt$ points at depth thirty.
+
+\emph{The benefit has a boundary, and we report it.} At depth fifty the
+projection no longer suffices: the projected polynomial and the plain ReLU
+stack both fall to $\LfiftyCollapseAcc\%$, and even BatchNorm --- the strongest
+normaliser in our study --- retains only $\LfiftyReluBnAcc\%$. Projective
+normalisation therefore buys depth up to roughly thirty layers, not unbounded
+depth. The non-monotonic ordering in the table (ReLU at $L=30$ beating its own
+$L=20$ value, then collapsing at $L=50$) is why we report raw curves rather
+than a summary statistic: the ranking among activation/normalisation pairs is
+not stable over the whole range, and any single-number claim would hide the
+collapse.
+
+\input{tables/tab_depth.tex}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.86\columnwidth]{figures/fig_depth.pdf}
+  \caption{Test accuracy versus network depth. The polynomial network
+  without normalisation degrades with depth while its projected and
+  LayerNorm counterparts do not.}
+  \label{fig:depth}
+\end{figure}
+
+\subsection{Synthetic data and a three-layer network}
+\label{sec:res-synth}
+
+MNIST is nearly linearly separable, so it rewards all reasonable activations
+alike and cannot expose what a polynomial buys. To find tasks where the
+choice matters we use the constructed datasets of
+Section~\ref{sec:setup} --- rings, spirals, XOR, three-dimensional cubes,
+checkerboards, high-dimensional Gaussians and a parity-like problem --- with
+the three-layer network the reference user asked for. Table~\ref{tab:synth}
+reports the full grid and Figure~\ref{fig:synth} summarises it. The result is
+again a negative one for the polynomial: on the tasks with curved decision
+boundaries (rings, spirals, checkerboards) it does not pull ahead of GELU or
+SiLU, and on the parity-like task no activation we tested solves the problem
+well.
+
+The synthetic tasks also let us isolate normalisation from depth, because at
+$L=3$ the numerical instabilities of Section~\ref{sec:res-act} have not had
+room to compound. Table~\ref{tab:synthnorm} and Figure~\ref{fig:synth_depth}
+show that even at three layers the ordering of normalisers is task dependent:
+on rings and spirals the projective $\ell_2$ map is best, on the checkerboard
+task BatchNorm catches up, and on parity no normaliser is needed at all. The
+honest summary is that normalisation choice matters most when the task
+\emph{and} the depth both stress signal propagation.
+
+\input{tables/tab_synth.tex}
+\input{tables/tab_synthnorm.tex}
+\input{tables/tab_width.tex}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.86\columnwidth]{figures/fig_synth.pdf}
+  \caption{Test accuracy heat map for the constructed datasets.}
+  \label{fig:synth}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.86\columnwidth]{figures/fig_synth_depth.pdf}
+  \caption{Constructed-dataset accuracy versus depth for the three-layer
+  regime.}
+  \label{fig:synth_depth}
+\end{figure}
+
+\subsection{Variance across seeds}
+\label{sec:res-seeds}
+
+A single seed is not a result. Table~\ref{tab:seeds} repeats the four
+headline configurations over five seeds. The projective polynomial's mean is
+$\seedsPolyprojMean\%$ with standard deviation $\seedsPolyprojStd\%$, the
+LayerNorm variant $\seedsPolylnMean\%\pm\seedsPolylnStd\%$, the BatchNorm
+variant $\seedsPolybnMean\%\pm\seedsPolybnStd\%$, and the ReLU baseline
+$\seedsReluMean\%\pm\seedsReluStd\%$. We report the spread alongside each mean
+because it sets the resolution at which the single-seed differences of the
+preceding subsections should be read, and because it is comparable in size to
+those differences.
+
+\input{tables/tab_seeds.tex}

@@ -1,0 +1,11 @@
+[mnist/rings/polyglu-d3-lam0.01/norm=layer/L10/s42] ep01/10 tr=75.08% te=94.77% (3s)
+[mnist/rings/polyglu-d3-lam0.01/norm=layer/L10/s42] ep02/10 tr=95.84% te=96.24% (6s)
+[mnist/rings/polyglu-d3-lam0.01/norm=layer/L10/s42] ep03/10 tr=97.13% te=96.72% (9s)
+[mnist/rings/polyglu-d3-lam0.01/norm=layer/L10/s42] ep04/10 tr=97.91% te=97.14% (12s)
+[mnist/rings/polyglu-d3-lam0.01/norm=layer/L10/s42] ep05/10 tr=98.43% te=97.27% (16s)
+[mnist/rings/polyglu-d3-lam0.01/norm=layer/L10/s42] ep06/10 tr=98.92% te=97.58% (19s)
+[mnist/rings/polyglu-d3-lam0.01/norm=layer/L10/s42] ep07/10 tr=99.35% te=97.86% (22s)
+[mnist/rings/polyglu-d3-lam0.01/norm=layer/L10/s42] ep08/10 tr=99.67% te=97.97% (25s)
+[mnist/rings/polyglu-d3-lam0.01/norm=layer/L10/s42] ep09/10 tr=99.81% te=97.97% (29s)
+[mnist/rings/polyglu-d3-lam0.01/norm=layer/L10/s42] ep10/10 tr=99.88% te=97.97% (32s)
+=== mnist-L10-polyglu-layer_mnist-rings-polyglu-d3-lam0.01-layer-L10-H82-lr0.001-e10-s42: test_acc=97.97% params=239942 time=31.9s

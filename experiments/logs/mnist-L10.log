@@ -1,0 +1,11 @@
+[mnist/rings/tanh-d3-lam0.01/norm=none/L10/s42] ep01/10 tr=90.48% te=94.53% (2s)
+[mnist/rings/tanh-d3-lam0.01/norm=none/L10/s42] ep02/10 tr=95.29% te=95.69% (3s)
+[mnist/rings/tanh-d3-lam0.01/norm=none/L10/s42] ep03/10 tr=96.48% te=96.06% (5s)
+[mnist/rings/tanh-d3-lam0.01/norm=none/L10/s42] ep04/10 tr=97.24% te=96.88% (7s)
+[mnist/rings/tanh-d3-lam0.01/norm=none/L10/s42] ep05/10 tr=97.96% te=96.58% (8s)
+[mnist/rings/tanh-d3-lam0.01/norm=none/L10/s42] ep06/10 tr=98.46% te=97.23% (10s)
+[mnist/rings/tanh-d3-lam0.01/norm=none/L10/s42] ep07/10 tr=99.04% te=97.36% (11s)
+[mnist/rings/tanh-d3-lam0.01/norm=none/L10/s42] ep08/10 tr=99.37% te=97.61% (13s)
+[mnist/rings/tanh-d3-lam0.01/norm=none/L10/s42] ep09/10 tr=99.62% te=97.77% (15s)
+[mnist/rings/tanh-d3-lam0.01/norm=none/L10/s42] ep10/10 tr=99.70% te=97.79% (16s)
+=== mnist-L10_mnist-rings-tanh-d3-lam0.01-none-L10-H128-lr0.001-e10-s42: test_acc=97.79% params=233866 time=16.2s

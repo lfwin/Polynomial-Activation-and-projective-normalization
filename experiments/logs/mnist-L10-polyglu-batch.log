@@ -1,0 +1,11 @@
+[mnist/rings/polyglu-d3-lam0.01/norm=batch/L10/s42] ep01/10 tr=11.16% te=12.58% (3s)
+[mnist/rings/polyglu-d3-lam0.01/norm=batch/L10/s42] ep02/10 tr=12.25% te=12.64% (6s)
+[mnist/rings/polyglu-d3-lam0.01/norm=batch/L10/s42] ep03/10 tr=12.41% te=12.22% (9s)
+[mnist/rings/polyglu-d3-lam0.01/norm=batch/L10/s42] ep04/10 tr=12.60% te=11.93% (12s)
+[mnist/rings/polyglu-d3-lam0.01/norm=batch/L10/s42] ep05/10 tr=12.93% te=12.40% (16s)
+[mnist/rings/polyglu-d3-lam0.01/norm=batch/L10/s42] ep06/10 tr=13.08% te=12.85% (19s)
+[mnist/rings/polyglu-d3-lam0.01/norm=batch/L10/s42] ep07/10 tr=13.23% te=12.65% (22s)
+[mnist/rings/polyglu-d3-lam0.01/norm=batch/L10/s42] ep08/10 tr=13.13% te=12.37% (25s)
+[mnist/rings/polyglu-d3-lam0.01/norm=batch/L10/s42] ep09/10 tr=13.13% te=12.35% (28s)
+[mnist/rings/polyglu-d3-lam0.01/norm=batch/L10/s42] ep10/10 tr=13.07% te=12.46% (31s)
+=== mnist-L10-polyglu-batch_mnist-rings-polyglu-d3-lam0.01-batch-L10-H82-lr0.001-e10-s42: test_acc=12.46% params=239942 time=30.8s

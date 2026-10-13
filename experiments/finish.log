@@ -1,0 +1,27 @@
+[2026-10-13 14:55:37] 等待当前 run_all.py 批次结束（每 60s 检查一次）...
+[2026-10-13 15:27:37] 当前批次已结束。
+[2026-10-13 15:27:37] 补齐新增配置（resume）...
+待运行: 1 个配置，并行度 8
+[1/1] OK  mnist-L10-fid :: === mnist-L10-fid_mnist-rings-poly_proj-d3-lam0.01-none-L10-H128-lr0.001-e2-s42: test_acc=92.23% params=233866 time=11.0s
+[2026-10-13 15:28:02] 配置补齐完成。
+[2026-10-13 15:28:02] 生成表格与图...
+载入 300 条实验记录
+  mnist                    161
+  seed                     25
+  synth                    64
+  synthd                   18
+  synthn                   32
+Traceback (most recent call last):
+  File "experiments/analyze.py", line 1091, in <module>
+    main()
+  File "experiments/analyze.py", line 1071, in main
+    table_width(recs, args.table_dir)
+  File "experiments/analyze.py", line 829, in table_width
+    r = one(recs, out=out_dir.name, dataset="mnist", activation=a,
+AttributeError: 'str' object has no attribute 'name'
+[2026-10-13 15:28:03] 生成 macros.tex 并校验...
+300 条记录 -> paper/macros.tex（140 个宏，未取到值的宏 0 个）
+论文引用但未定义的宏: ['fidEOneTest', 'fidEOneTrain', 'fidETwoTest', 'fidETwoTrain']
+[2026-10-13 15:28:03] 编译论文...
+./finish_paper.sh: line 42: ./make_paper.sh: Permission denied
+[2026-10-13 15:28:03] 全部完成。

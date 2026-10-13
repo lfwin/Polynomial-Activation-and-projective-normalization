@@ -1,0 +1,11 @@
+[mnist/rings/swiglu-d3-lam0.01/norm=rms/L10/s42] ep01/10 tr=81.02% te=94.88% (8s)
+[mnist/rings/swiglu-d3-lam0.01/norm=rms/L10/s42] ep02/10 tr=95.97% te=95.93% (15s)
+[mnist/rings/swiglu-d3-lam0.01/norm=rms/L10/s42] ep03/10 tr=97.29% te=96.64% (23s)
+[mnist/rings/swiglu-d3-lam0.01/norm=rms/L10/s42] ep04/10 tr=98.00% te=97.01% (30s)
+[mnist/rings/swiglu-d3-lam0.01/norm=rms/L10/s42] ep05/10 tr=98.58% te=97.14% (38s)
+[mnist/rings/swiglu-d3-lam0.01/norm=rms/L10/s42] ep06/10 tr=98.94% te=97.36% (45s)
+[mnist/rings/swiglu-d3-lam0.01/norm=rms/L10/s42] ep07/10 tr=99.35% te=97.67% (53s)
+[mnist/rings/swiglu-d3-lam0.01/norm=rms/L10/s42] ep08/10 tr=99.63% te=97.86% (60s)
+[mnist/rings/swiglu-d3-lam0.01/norm=rms/L10/s42] ep09/10 tr=99.80% te=98.00% (68s)
+[mnist/rings/swiglu-d3-lam0.01/norm=rms/L10/s42] ep10/10 tr=99.86% te=97.95% (75s)
+=== mnist-L10-swiglu-rms_mnist-rings-swiglu-d3-lam0.01-rms-L10-H82-lr0.001-e10-s42: test_acc=97.95% params=239204 time=75.4s

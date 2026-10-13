@@ -1,0 +1,11 @@
+[mnist/rings/identity-d3-lam0.01/norm=none/L2/s42] ep01/10 tr=88.67% te=91.83% (1s)
+[mnist/rings/identity-d3-lam0.01/norm=none/L2/s42] ep02/10 tr=91.89% te=92.32% (2s)
+[mnist/rings/identity-d3-lam0.01/norm=none/L2/s42] ep03/10 tr=92.41% te=91.77% (3s)
+[mnist/rings/identity-d3-lam0.01/norm=none/L2/s42] ep04/10 tr=92.62% te=92.06% (4s)
+[mnist/rings/identity-d3-lam0.01/norm=none/L2/s42] ep05/10 tr=92.80% te=92.34% (6s)
+[mnist/rings/identity-d3-lam0.01/norm=none/L2/s42] ep06/10 tr=92.94% te=92.56% (7s)
+[mnist/rings/identity-d3-lam0.01/norm=none/L2/s42] ep07/10 tr=93.13% te=92.71% (8s)
+[mnist/rings/identity-d3-lam0.01/norm=none/L2/s42] ep08/10 tr=93.27% te=92.61% (9s)
+[mnist/rings/identity-d3-lam0.01/norm=none/L2/s42] ep09/10 tr=93.51% te=92.61% (10s)
+[mnist/rings/identity-d3-lam0.01/norm=none/L2/s42] ep10/10 tr=93.56% te=92.68% (11s)
+=== mnist-L2-identity_mnist-rings-identity-d3-lam0.01-none-L2-H128-lr0.001-e10-s42: test_acc=92.68% params=101770 time=11.3s

@@ -1,0 +1,11 @@
+[mnist/rings/relu-d3-lam0.01/norm=batch/L50/s42] ep01/10 tr=29.00% te=61.61% (11s)
+[mnist/rings/relu-d3-lam0.01/norm=batch/L50/s42] ep02/10 tr=74.65% te=85.74% (21s)
+[mnist/rings/relu-d3-lam0.01/norm=batch/L50/s42] ep03/10 tr=81.81% te=70.00% (32s)
+[mnist/rings/relu-d3-lam0.01/norm=batch/L50/s42] ep04/10 tr=83.27% te=80.12% (43s)
+[mnist/rings/relu-d3-lam0.01/norm=batch/L50/s42] ep05/10 tr=81.15% te=67.22% (54s)
+[mnist/rings/relu-d3-lam0.01/norm=batch/L50/s42] ep06/10 tr=81.77% te=45.88% (65s)
+[mnist/rings/relu-d3-lam0.01/norm=batch/L50/s42] ep07/10 tr=83.60% te=51.94% (76s)
+[mnist/rings/relu-d3-lam0.01/norm=batch/L50/s42] ep08/10 tr=86.43% te=39.99% (87s)
+[mnist/rings/relu-d3-lam0.01/norm=batch/L50/s42] ep09/10 tr=87.95% te=46.83% (97s)
+[mnist/rings/relu-d3-lam0.01/norm=batch/L50/s42] ep10/10 tr=89.74% te=44.64% (108s)
+=== mnist-L50-relu-bn_mnist-rings-relu-d3-lam0.01-batch-L50-H128-lr0.001-e10-s42: test_acc=44.64% params=906890 time=108.3s

@@ -1,0 +1,11 @@
+[mnist/rings/relu-d3-lam0.01/norm=none/L5/s42] ep01/10 tr=90.74% te=95.97% (3s)
+[mnist/rings/relu-d3-lam0.01/norm=none/L5/s42] ep02/10 tr=96.53% te=96.93% (7s)
+[mnist/rings/relu-d3-lam0.01/norm=none/L5/s42] ep03/10 tr=97.53% te=97.23% (11s)
+[mnist/rings/relu-d3-lam0.01/norm=none/L5/s42] ep04/10 tr=98.11% te=97.57% (15s)
+[mnist/rings/relu-d3-lam0.01/norm=none/L5/s42] ep05/10 tr=98.72% te=97.46% (20s)
+[mnist/rings/relu-d3-lam0.01/norm=none/L5/s42] ep06/10 tr=99.19% te=97.94% (24s)
+[mnist/rings/relu-d3-lam0.01/norm=none/L5/s42] ep07/10 tr=99.52% te=98.13% (28s)
+[mnist/rings/relu-d3-lam0.01/norm=none/L5/s42] ep08/10 tr=99.77% te=98.18% (32s)
+[mnist/rings/relu-d3-lam0.01/norm=none/L5/s42] ep09/10 tr=99.88% te=98.20% (37s)
+[mnist/rings/relu-d3-lam0.01/norm=none/L5/s42] ep10/10 tr=99.92% te=98.24% (41s)
+=== mnist-L5-relu_mnist-rings-relu-d3-lam0.01-none-L5-H128-lr0.001-e10-s42: test_acc=98.24% params=151306 time=40.8s

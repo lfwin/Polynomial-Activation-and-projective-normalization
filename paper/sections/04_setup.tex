@@ -1,0 +1,135 @@
+\section{Experimental Setup}
+\label{sec:setup}
+
+\subsection{Single harness, reproducible reference}
+
+All results come from one implementation, which reproduces the reference
+network exactly. We verified this by running the reference configuration
+(\texttt{--activation poly\_proj}, i.e.\ Eq.~\eqref{eq:projective-poly}) for
+two epochs and confirming that the per-epoch train/test accuracies agree with
+the standalone reference script to the last reported digit. The fidelity run's
+values are $\fidEOneTrain\%$ / $\fidEOneTest\%$ after epoch one and
+$\fidETwoTrain\%$ / $\fidETwoTest\%$ after epoch two (train / test); note that
+the reference script's default epoch count is twenty, and the cosine schedule
+has period equal to the epoch budget, so the two-epoch fidelity check is
+compared against the reference script run with the same two-epoch budget.
+Because the harness is a strict superset of the reference script, every number
+in this paper is comparable to every other number, and the reference
+configuration appears in every table as the baseline row: with its own
+twenty-epoch budget it reaches $\refTrainAcc\%$ train and $\refTestAcc\%$ test
+accuracy in $\refEpochSec$\,s per epoch ($\refTotalSec$\,s total).
+
+\subsection{Data}
+
+\paragraph{MNIST.} $60{,}000$ training and $10{,}000$ test grayscale images,
+$28 \times 28$, flattened to $784$ dimensions with the raw pixel scale in
+$[0,1]$ (only \texttt{ToTensor}, no mean-variance standardization --- the
+reference pipeline uses none, and adding one would change the effective scale
+of the activation, which is precisely one of the axes under study). Ten
+classes.
+
+\paragraph{Synthetic.} Eight generator families, each a deterministic function
+of a seed, with the test split drawn from the same generator at a different
+seed so that the two splits are independent samples of the same distribution
+rather than a split of one finite sample.
+
+\begin{itemize}
+\item \emph{rings} (5 classes, 2-D): concentric noisy circles; requires the
+  network to use the radius, i.e.\ a \emph{quadratic} function of the input.
+  Directly relevant to whether a cubic activation helps on a polynomial task.
+\item \emph{spiral} (5 classes, 2-D): the classical interleaved spiral;
+  requires a strongly nonlinear, non-monotone decision boundary.
+\item \emph{blobs} (5 classes, 2-D): well-separated Gaussians; an easy control
+  that should saturate for every activation and therefore calibrates the other
+  results.
+\item \emph{xor} (2 classes, 2-D): parity of the coordinate signs; the minimal
+  case where an additive (linear-plus-pointwise) model must build a product.
+\item \emph{checker} (2 classes, 2-D): a $4\times4$ checkerboard; high-frequency
+  and piecewise constant, the regime where a smooth activation is expected to
+  have difficulty.
+\item \emph{cubes} (2 classes, 3-D): parity of three dichotomized coordinates,
+  i.e.\ a \emph{third-order} interaction, matched to the order of the reference
+  cubic.
+\item \emph{parity} (2 classes, 10-D): parity of ten binary features. The label
+  depends on the tenth-order interaction, so any model that can only form
+  low-order or additive functions must fail; this is our stress test for
+  whether a degree-3 activation's advantage is about order or about scale.
+\item \emph{gauss\_highdim} (5 classes, 50-D): a five-class problem living on a
+  two-dimensional subspace, embedded in fifty dimensions with additive noise.
+  Tests whether the projection's scale control helps when most input
+  directions are noise.
+\end{itemize}
+
+For the synthetic experiments the input is standardized using \emph{training}
+split statistics only. We use $4000$ training and $800$ test samples per
+family.
+
+\subsection{Models and hyperparameters}
+
+Unless stated otherwise, the configuration is depth $L = 10$ linear layers,
+hidden width $H = 128$, AdamW with learning rate $10^{-3}$ and weight decay
+$10^{-4}$, cosine-annealed over the run, gradient-norm clipping at $5.0$,
+batch size $128$, and $10$ epochs. The learning rate, weight decay, clipping
+threshold, batch size and scheduler all match the reference script, so the
+reference row of each table is a faithful baseline rather than a re-tuned one.
+The synthetic experiments use the shallower, smaller setting requested for
+that part of the study: $L = 3$, $H = 64$, learning rate $3\times 10^{-3}$,
+batch size $64$, $60$ epochs. The headline comparison is repeated over five
+seeds ($0$--$4$) and reported as mean $\pm$ standard deviation; all other
+tables use the single reference seed $42$.
+
+\subsection{Sweeps}
+
+\begin{table}[t]
+\centering
+\caption{Sweeps. Each row varies one factor of the reference configuration
+while holding the rest at the reference values. $L$ = depth, $H$ = width,
+$d$ = polynomial order, $\lambda$ = polynomial coefficient, pos = placement
+of the normalization relative to the nonlinearity.}
+\label{tab:sweeps}
+\small
+\begin{tabular}{@{}llll@{}}
+\toprule
+Axis & Values & Fixed & Purpose \\
+\midrule
+Activation (pointwise) & 6 functions & $L{=}10$, no norm & main comparison \\
+Activation (gated) & 3 units, $W_g{=}82$ & $L{=}10$, no norm & modern LLM shapes \\
+Learned polynomial & Legendre/Chebyshev/spline & $L{=}10$ & fixed vs.\ learned \\
+Polynomial order & $d \in \{2,3,4,5\}$ & $\lambda{=}10^{-2}$, $\pi$ & order sensitivity \\
+Coefficient & $\lambda \in \{10^{-3},10^{-2},5{\cdot}10^{-2},10^{-1}\}$ & $d{=}3$, $\pi$ & coefficient sensitivity \\
+Normalization & none, $\pi$, BN, LN, RMS & ReLU \& poly & main comparison \\
+Placement & pre, post & ReLU \& poly & pre- vs.\ post-norm \\
+Depth & $L \in \{2,3,5,10,15,20\}$ & 7 activation/norm pairs & depth scaling \\
+Depth (extreme) & $L \in \{30,50\}$ & 7 activation/norm pairs & gradient propagation \\
+Width & $H \in \{82,128,192\}$ & 4 activations & capacity control \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:sweeps} lists the axes. Three design choices deserve comment.
+First, wherever an architectural family changes the parameter count --- gated
+units, learnable activations, the spline basis --- we report the matched
+parameter count alongside the accuracy, and we include a width-controlled
+pointwise baseline, so that no conclusion rests on an accidental capacity
+difference. Second, following the same deployability criterion that fixed the
+activation list, we restrict the sweep to activations that a current frontier
+language model actually uses, plus the polynomial family that is the subject
+of the paper; the historical activation zoo is not re-audited. Third, the
+depth sweep includes $30$ and $50$ layers, well past the depth at which
+unnormalized networks are traditionally expected to fail, because the claim
+most worth testing about a scale-controlling activation is whether it keeps
+very deep stacks alive.
+
+\subsection{Diagnostics and cost accounting}
+
+For every run we record per-layer gradient norms and per-layer activation
+norms before training and after the last epoch, on a fixed mini-batch of $512$
+training samples. We also record parameter count, forward FLOPs per sample,
+and wall-clock seconds per epoch. All runs execute on CPU (the reference
+environment has no GPU), with the thread count pinned and configurations run
+in parallel processes; wall-clock numbers are therefore comparable within the
+study but are not a statement about GPU throughput. Every configuration writes
+a JSON record containing its arguments, metrics, per-epoch history, per-class
+accuracy and confusion matrix, so all tables and figures in this paper are
+generated mechanically from those records by a separate analysis script
+rather than transcribed by hand.

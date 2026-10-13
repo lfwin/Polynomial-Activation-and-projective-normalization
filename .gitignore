@@ -1,0 +1,28 @@
+# 本机虚拟环境 / 数据 / 构建产物
+.venv/
+venv/
+env/
+data/
+runs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# LaTeX 中间产物（保留 main.pdf / main.bbl）
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/*.toc
+paper/*.blg
+paper/*.fls
+paper/*.fdb_latexmk
+paper/*.synctex.gz
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+*.swp

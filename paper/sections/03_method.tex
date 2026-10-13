@@ -1,0 +1,180 @@
+\section{Method}
+\label{sec:method}
+
+\subsection{Reference architecture}
+
+The reference network is the source network of this study: a depth-$L$
+fully-connected classifier with $L$ linear layers, the first $L-1$ of which
+are followed by the same activation--normalization block, and the last of
+which produces class logits without either. Writing $d_0$ for the input
+dimension (784 for MNIST), $H$ for the hidden width, and $C$ for the number of
+classes ($10$ for MNIST), the network is
+\begin{align}
+h^{(0)} &= x, \\
+h^{(\ell)} &= \pi\bigl(f(W_{\ell} h^{(\ell-1)} + b_{\ell})\bigr),
+  \qquad \ell = 1,\dots,L-1, \label{eq:block}\\
+\hat{y} &= W_{L} h^{(L-1)} + b_{L},
+\end{align}
+with $x \in \mathbb{R}^{d_0}$ flattened from the input, $W_1 \in
+\mathbb{R}^{H \times d_0}$, $W_\ell \in \mathbb{R}^{H \times H}$ for
+$2 \le \ell \le L-1$, and $W_L \in \mathbb{R}^{C \times H}$. All weights are
+initialized with Xavier-uniform and all biases to zero. The block
+$h \mapsto \pi(f(Wh+b))$ is the object of study; both $f$ and $\pi$ are
+independently selectable in our implementation, and the reference
+configuration is $f(z) = z + \lambda z^{3}$ with $\lambda = 10^{-2}$,
+$\pi(y) = y / \lVert y \rVert_2$.
+
+\subsection{The projective polynomial block}
+
+The reference activation is
+\begin{equation}
+f(z) = \operatorname{clamp}(z, [-c, c]) + \lambda \operatorname{clamp}(z, [-c, c])^{3},
+\qquad c = 10,
+\label{eq:poly}
+\end{equation}
+applied elementwise, followed by the per-sample projection
+\begin{equation}
+\pi(y) = \frac{y}{\max\{\lVert y \rVert_2, \epsilon\}},
+\qquad \epsilon = 10^{-8},
+\label{eq:proj}
+\end{equation}
+where the norm runs over the feature axis, so that $\pi(y)$ is a point of the
+unit sphere and the layer map is invariant to the radial scale of $y$. We
+emphasize three properties that motivate this choice and that our ablations
+probe separately.
+\begin{itemize}
+\item \emph{Bounded growth.} The clamp bounds $|f(z)| \le c + \lambda c^3$,
+  so the forward signal cannot blow up; the projection then bounds the
+  \emph{norm} of each hidden activation at exactly $1$.
+\item \emph{No statistics, no state.} $\pi$ has no parameters and no running
+  buffers. Unlike BatchNorm it does not couple samples, and unlike both
+  BatchNorm and LayerNorm it has no learned affine (`scale and shift'')
+  parameters, so it changes the geometry of the representation without adding
+  a single degree of freedom.
+\item \emph{Radial invariance.} Because $\pi$ identifies $y$ with $y/\lVert y
+  \rVert$, the block discards the radial direction at every layer, which is
+  the sense in which the construction is projective.
+\end{itemize}
+
+We separate the two components in the implementation: \texttt{--activation
+poly} gives Eq.~\eqref{eq:poly} \emph{without} the projection, \texttt{--norm
+l2} gives Eq.~\eqref{eq:proj} \emph{without} the polynomial, and \texttt{--activation
+poly\_proj} gives the reference block of Eq.~\eqref{eq:projective-poly}. This
+factorization is what allows the same harness to attribute performance to the
+polynomial, to the projection, or to their combination.
+
+\paragraph{Placement.} Normalization can be applied before or after the
+nonlinearity. Write the block as $\pi \circ f$ (``post'') or $f \circ \pi$
+(``pre''). The reference construction is post-normalization; we report both,
+since pre-normalization is standard in transformers while post-normalization
+was the original BatchNorm convention.
+
+\subsection{Activation families}
+
+Let $z$ denote the pre-activation. All pointwise activations are applied
+elementwise.
+
+\paragraph{Pointwise.}
+Identity (a linear control), the classical saturating $\tanh(z)$, and the
+three non-saturating activations that current large language models use in
+practice: $\operatorname{ReLU}(z) = \max(0,z)$, GELU $z\Phi(z)$ with $\Phi$ the
+standard normal CDF (``exact'', not the tanh approximation), and SiLU
+$z\sigma(z)$. We deliberately restrict the pointwise family to these, rather
+than sweeping the many historical variants (LeakyReLU, ELU, SELU, Softplus,
+Mish, sinusoidal), because none of those appears in a current frontier
+language model; the study is meant to state where a polynomial activation
+stands relative to what is actually deployed, not to re-audit the
+activation-function zoo. The identity map is retained only as a control that
+makes the contribution of nonlinearity itself measurable.
+
+\paragraph{Polynomial.}
+The fixed truncated cubic of Eq.~\eqref{eq:poly}, with the order and
+coefficient treated as hyperparameters, and three \emph{learnable} polynomial
+activations:
+\begin{align}
+f_{\text{Leg}}(z) &= g \sum_{k=0}^{K} a_k L_k\!\left(\frac{\tilde{z}}{B}\right),
+\qquad
+f_{\text{Cheb}}(z) = g \sum_{k=0}^{K} a_k T_k\!\left(\frac{\tilde{z}}{B}\right),
+\qquad
+\tilde{z} = \operatorname{clamp}\!\left(\frac{z}{s}, [-B, B]\right),
+\end{align}
+where $L_k$ and $T_k$ are the Legendre and Chebyshev polynomials of degree
+$k$, $s$ and $B$ fix the normalization window, and $(a_k)$ together with the
+gain $g$ are learned. We initialize $a_1 = 1$, $a_{k \neq 1} = 0$, $g = 1$,
+so every learnable activation \emph{starts as the identity map} and must
+justify any departure from it.
+For the spline variant we use the KAN construction
+\begin{equation}
+f_{\text{spline}}(z) = w_{\text{base}}\,\operatorname{SiLU}(z) +
+  w_{\text{spline}} \sum_{j} c_j N_j(\operatorname{clamp}(z,[-B,B])),
+\end{equation}
+with $N_j$ cubic B-spline basis functions on a uniform grid and control
+points $c_j$ initialized to zero, so the activation also starts at
+$w_{\text{base}}\operatorname{SiLU}(z)$ --- the KAN initialization.
+
+\paragraph{Gated units.}
+A gated unit replaces the pointwise map by
+\begin{equation}
+\operatorname{GLU}_{\sigma}(W x) = (W_v x) \odot \sigma(W_g x),
+\label{eq:glu}
+\end{equation}
+with two matrices $W_v, W_g$ and a gate nonlinearity $\sigma$. We use the two
+gates that current language models deploy --- $\sigma = \mathrm{SiLU}$
+(SwiGLU, as in Llama and PaLM) and $\sigma = \mathrm{GELU}$ (GeGLU) --- and,
+as the paper's polynomial counterpart, $\sigma = z + \lambda z^{3}$
+(PolyGLU). Gated units with historical gate nonlinearities (ReGLU, SELU-GLU,
+Mish-GLU, Tanh-GLU) and the fully degenerate \emph{bilinear} unit ($\sigma =
+\operatorname{Id}$) are omitted for the same reason as the historical
+pointwise activations: they are not what is deployed, and including them
+would broaden the failure-mode survey without changing the comparison the
+paper is about.
+
+Because Eq.~\eqref{eq:glu} carries about twice the parameters of a pointwise
+block at the same width, a pointwise-versus-gated comparison at equal width
+confounds the activation with capacity. We therefore report gated results at
+a width chosen so that the \emph{total} parameter count matches the pointwise
+network, and we additionally report pointwise networks at that reduced width
+as a control. Concretely, for a depth-$L$ network with input dimension
+$d_0$ and $C$ classes, a pointwise network at width $W_e$ has
+$d_0 W_e + (L-2)W_e^2 + C W_e + C$ weights, while a gated network at width
+$W_g$ has $2d_0 W_g + 2(L-2)W_g^2 + C W_g + C$; we choose $W_g = 82$ to match
+the pointwise width $W_e = 128$ as closely as an integer width allows at
+$L = 10$, $d_0 = 784$, $C = 10$. At these settings the two blocks have
+\paramElem{} and \paramGate{} parameters respectively, a residual gap of
+\paramGapPct{}\%; \emph{no integer width removes this gap}, because the
+gated block carries a second $d_0 W_g$ term and a second $(L-2)W_g$ multiplier,
+which is not an affine function of the width. We report this gap rather than
+hiding it, and we also report pointwise networks at the reduced width
+$W_g = 82$ as a control, so that the activation effect can be read off the
+matched-capacity rows as well as the matched-width rows.
+
+\subsection{Normalization families}
+
+We compare five normalization choices, all applied to the hidden activation
+with the feature axis as the normalization axis.
+\begin{itemize}
+\item \emph{None}, the unnormalized control.
+\item \emph{Projection} ($\pi$): Eq.~\eqref{eq:proj}, no parameters.
+\item \emph{BatchNorm}: per-feature standardization by mini-batch mean and
+  variance, with learned scale and shift and running statistics for
+  evaluation.
+\item \emph{LayerNorm}: per-sample standardization over the feature axis, with
+  learned scale and shift.
+\item \emph{RMSNorm}: per-sample root-mean-square scaling, with a learned
+  scale but no mean subtraction and no shift.
+\end{itemize}
+This choice makes the comparison informative in a specific way: BatchNorm and
+LayerNorm both add a learned affine map after normalizing, while projection
+and RMSNorm (essentially) do not, so we can separate the effect of
+\emph{normalizing} from the effect of \emph{re-parameterizing with a learned
+affine map}.
+
+\subsection{Diagnostics}
+
+For each run we record, in addition to loss and accuracy curves, the
+per-layer gradient norms and the per-layer activation norms at
+initialization and after training, on a fixed mini-batch. These let us
+distinguish runs that differ in accuracy because of optimization (gradient
+profile) from runs that differ because of representation scale (activation
+profile), and in particular they make visible the collapse of the
+unnormalized gated unit reported in Sec.~\ref{sec:results}.

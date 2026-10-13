@@ -1,0 +1,11 @@
+[mnist/rings/poly-d3-lam0.01/norm=batch/L5/s42] ep01/10 tr=88.64% te=91.52% (2s)
+[mnist/rings/poly-d3-lam0.01/norm=batch/L5/s42] ep02/10 tr=91.08% te=92.24% (4s)
+[mnist/rings/poly-d3-lam0.01/norm=batch/L5/s42] ep03/10 tr=92.14% te=92.95% (6s)
+[mnist/rings/poly-d3-lam0.01/norm=batch/L5/s42] ep04/10 tr=93.03% te=93.38% (8s)
+[mnist/rings/poly-d3-lam0.01/norm=batch/L5/s42] ep05/10 tr=94.10% te=94.74% (10s)
+[mnist/rings/poly-d3-lam0.01/norm=batch/L5/s42] ep06/10 tr=95.09% te=95.35% (12s)
+[mnist/rings/poly-d3-lam0.01/norm=batch/L5/s42] ep07/10 tr=95.84% te=95.96% (14s)
+[mnist/rings/poly-d3-lam0.01/norm=batch/L5/s42] ep08/10 tr=96.34% te=96.27% (16s)
+[mnist/rings/poly-d3-lam0.01/norm=batch/L5/s42] ep09/10 tr=96.78% te=96.52% (18s)
+[mnist/rings/poly-d3-lam0.01/norm=batch/L5/s42] ep10/10 tr=97.04% te=96.51% (20s)
+=== mnist-L5-poly-bn_mnist-rings-poly-d3-lam0.01-batch-L5-H128-lr0.001-e10-s42: test_acc=96.51% params=152330 time=19.9s

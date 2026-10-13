@@ -1,0 +1,11 @@
+[mnist/rings/polyglu-d3-lam0.01/norm=rms/L10/s42] ep01/10 tr=78.03% te=94.79% (3s)
+[mnist/rings/polyglu-d3-lam0.01/norm=rms/L10/s42] ep02/10 tr=96.01% te=96.37% (7s)
+[mnist/rings/polyglu-d3-lam0.01/norm=rms/L10/s42] ep03/10 tr=97.33% te=96.93% (10s)
+[mnist/rings/polyglu-d3-lam0.01/norm=rms/L10/s42] ep04/10 tr=98.00% te=97.07% (13s)
+[mnist/rings/polyglu-d3-lam0.01/norm=rms/L10/s42] ep05/10 tr=98.53% te=97.36% (17s)
+[mnist/rings/polyglu-d3-lam0.01/norm=rms/L10/s42] ep06/10 tr=99.00% te=97.68% (20s)
+[mnist/rings/polyglu-d3-lam0.01/norm=rms/L10/s42] ep07/10 tr=99.33% te=97.61% (24s)
+[mnist/rings/polyglu-d3-lam0.01/norm=rms/L10/s42] ep08/10 tr=99.63% te=98.21% (27s)
+[mnist/rings/polyglu-d3-lam0.01/norm=rms/L10/s42] ep09/10 tr=99.83% te=98.11% (31s)
+[mnist/rings/polyglu-d3-lam0.01/norm=rms/L10/s42] ep10/10 tr=99.90% te=98.17% (34s)
+=== mnist-L10-polyglu-rms_mnist-rings-polyglu-d3-lam0.01-rms-L10-H82-lr0.001-e10-s42: test_acc=98.17% params=239204 time=33.9s

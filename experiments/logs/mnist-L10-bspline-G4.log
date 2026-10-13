@@ -1,0 +1,11 @@
+[mnist/rings/bspline-d3-lam0.01/norm=none/L10/s42] ep01/10 tr=87.71% te=94.86% (42s)
+[mnist/rings/bspline-d3-lam0.01/norm=none/L10/s42] ep02/10 tr=96.14% te=96.60% (86s)
+[mnist/rings/bspline-d3-lam0.01/norm=none/L10/s42] ep03/10 tr=97.31% te=96.78% (128s)
+[mnist/rings/bspline-d3-lam0.01/norm=none/L10/s42] ep04/10 tr=98.11% te=96.96% (171s)
+[mnist/rings/bspline-d3-lam0.01/norm=none/L10/s42] ep05/10 tr=98.61% te=97.50% (215s)
+[mnist/rings/bspline-d3-lam0.01/norm=none/L10/s42] ep06/10 tr=99.05% te=97.67% (261s)
+[mnist/rings/bspline-d3-lam0.01/norm=none/L10/s42] ep07/10 tr=99.49% te=97.87% (305s)
+[mnist/rings/bspline-d3-lam0.01/norm=none/L10/s42] ep08/10 tr=99.74% te=98.09% (351s)
+[mnist/rings/bspline-d3-lam0.01/norm=none/L10/s42] ep09/10 tr=99.88% te=98.17% (395s)
+[mnist/rings/bspline-d3-lam0.01/norm=none/L10/s42] ep10/10 tr=99.93% te=98.20% (442s)
+=== mnist-L10-bspline-G4_mnist-rings-bspline-d3-lam0.01-none-L10-H128-lr0.001-e10-s42: test_acc=98.20% params=233875 time=441.8s
