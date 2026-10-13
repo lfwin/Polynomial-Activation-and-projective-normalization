@@ -124,10 +124,10 @@ sudo apt-get install texlive-latex-base texlive-latex-extra texlive-fonts-recomm
 
 ### MNIST data
 
-The repository does **not** ship the MNIST files. The harness runs fully offline by default
-(`download=False`) so that reproduction is network-independent — the packed data
-itself is the original raw files. On a fresh clone, either drop the standard torchvision
-`MNIST/raw/` files into `./data/`, or let torchvision fetch them once:
+The repository does **not** ship the MNIST files (they are 12 MB of packed binaries and are
+not the interesting artifact). The harness runs fully offline by default (`download=False`)
+so that reproduction is network-independent. On a fresh clone, either drop the standard
+torchvision `MNIST/raw/` files into `./data/`, or let torchvision fetch them once:
 
 ```bash
 python experiments/harness.py --dataset mnist --data-dir ./data --allow-download ...
