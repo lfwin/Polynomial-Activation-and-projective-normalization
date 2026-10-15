@@ -7,7 +7,7 @@ of What Makes Deep Fully-Connected Networks Trainable*
 **Author:** Xiuyi Yang — fwinlee@gmail.com
 
 This repository contains the complete, self-contained experimental artifact for the paper:
-a unified training harness, all 335 experiment configurations, every raw result file, and the
+a unified training harness, all 351 experiment configurations, every raw result file, and the
 analysis code that turns raw JSON into tables, figures and every number that appears in the
 paper. Every number is generated from the raw results — none is typed by hand.
 
@@ -88,6 +88,49 @@ normalization*; and renormalizing after the sum (the `r1`-then-normalize variant
 straight back to the baseline collapse. The prescription in the paper is in this table:
 control scale, and never renormalize after the residual sum.
 
+### Pure polynomial, no bias, no clamp, no residual (`pure_poly_mnist`)
+
+The cleanest test of "can the polynomial alone train a deep stack?" strips every
+confound: activation `z + 0.01 z^3`, no bias on any linear layer, no clamp on the
+polynomial, and no residual path. Depths 10/20/30/50/100, with and without the
+projective (L2) normalisation.
+
+| depth | norm | init | test acc. |
+|---|---|---|---|
+| 10 | none | xavier | 94.76 |
+| 20 | none | xavier | 9.80 (overflow) |
+| 30 | none | xavier | 9.80 (overflow) |
+| 50 | none | xavier | 9.80 (overflow) |
+| 100 | none | xavier | 9.80 (overflow) |
+| 10 | l2 | xavier | 92.74 |
+| 20 | l2 | xavier | 92.59 |
+| 30 | l2 | xavier | 90.27 |
+| 50 | l2 | xavier | 11.35 |
+| 100 | l2 | xavier | 11.35 |
+
+Two failure modes, both fixed only by scale control:
+
+- **Without normalisation the stack overflows in the first epoch.** Layer norms grow
+  geometrically and the training loss goes to `nan` by depth 20; accuracy sits at
+  chance for every depth past 10.
+- **With the projective normalisation the run is numerically clean but still dies
+  past depth 30.** Every layer norm is pinned at exactly 1.0, no `nan` anywhere, yet
+  the layer-wise gradient falls to ~1e-12 by depth 100 and the stack collapses to a
+  constant predictor (11.35%). The normalisation buys depth 30, not depth 100.
+
+An identity-initialised arm (diagonal `1 + 0.1 U(-1,1)`, zero off-diagonal) does not
+change the conclusion, and exposes a separate pitfall: the first layer maps 784 -> 128,
+so a purely diagonal map keeps only the first 128 input pixels — the top of an MNIST
+digit, which is blank for about two thirds of the images. Those samples then have an
+exactly-zero hidden vector, and the L2 normalisation's backward pass divides by a zero
+norm, producing `nan` from the first step. Initialisations that keep the identity path
+*exactly* diagonal must therefore be paired with a normalisation that has a safe
+zero-norm backward, or the first layer must not be diagonal.
+
+The conclusion is unchanged from the residual study above: the activation is not what
+buys depth, scale control is. The projective map raises the trainable depth from ~15 to
+~30; only an identity path (the residual `r1`) reaches 100 and beyond.
+
 ### Algebraic side: exact critical sets and Bertini decompositions
 
 The small-model claims are computed, not asserted. Exact rational arithmetic (Sage /
@@ -121,7 +164,7 @@ reported. The solver's scratch directory `experiments/bertini_runs/` is not comm
 ├── run.sh / run_experiments.sh               # wrapper for a single training run
 ├── experiments/
 │   ├── harness.py            # the unified training/eval harness (model, data, metrics)
-│   ├── run_all.py            # the full 335-config experiment grid + worker orchestration
+│   ├── run_all.py            # the full 351-config experiment grid + worker orchestration
 │   ├── analyze.py            # raw JSON -> paper/tables/*.tex + paper/figures/*.pdf
 │   ├── make_macros.py        # raw JSON -> paper/macros.tex (every number in the paper)
 │   ├── verify_fidelity.py    # bit-for-bit check against the original script
@@ -135,7 +178,7 @@ reported. The solver's scratch directory `experiments/bertini_runs/` is not comm
 │   ├── dump_bertini_raw.py   # bertini_runs/ scratch -> bertini_*.json
 │   ├── status.sh             # progress overview of the result directory
 │   ├── logs/                 # raw stdout of the experiment runs (evidence trail)
-│   └── <group>/*.json        # 335 raw result records, one file per configuration
+│   └── <group>/*.json        # 351 raw result records, one file per configuration
 └── (paper/ — built locally, not tracked; see "Reproducing" below)
 ```
 
@@ -160,7 +203,8 @@ Result groups under `experiments/`:
 | `ref_orig` / `ref_fidelity` | 1 + 1 | faithful reproduction of the original script |
 | `synth3` / `synth3_depth` / `synth3_norm` | 64 + 18 + 32 | synthetic diagnostic tasks |
 | `residual_mnist` | 34 | depth 100 identity-residual study + depth sweep to 300, no normalization |
-| **total** | **335** | |
+| `pure_poly_mnist` | 16 | pure polynomial, no bias / no clamp / no residual: depth 10-100 with and without the projective normalisation, plus identity-init arms |
+| **total** | **351** | |
 
 ---
 
@@ -208,7 +252,7 @@ hardcoded to a machine.
 # 1. Confirm the harness reproduces the original standalone script bit-for-bit
 python experiments/verify_fidelity.py          # expect 96.86%
 
-# 2. Run the full grid (335 configs). Pick --workers to match your core count.
+# 2. Run the full grid (351 configs). Pick --workers to match your core count.
 python experiments/run_all.py --group all --workers 8
 python experiments/run_all.py --list           # inspect groups without running
 
@@ -218,7 +262,7 @@ python experiments/analyze.py                  # -> paper/tables, paper/figures
 python experiments/make_macros.py --check      # -> paper/macros.tex + consistency check
 ```
 
-Step 3 needs no retraining: the 335 raw JSON records are committed, so all tables,
+Step 3 needs no retraining: the 351 raw JSON records are committed, so all tables,
 figures and number macros can be regenerated from a clean clone.
 
 The full grid is dominated by single-threaded training runs executed in parallel worker
@@ -229,7 +273,7 @@ processes; `--workers 8` is a safe default on a 20-core machine. To re-run one g
 
 ## 5. Reproducibility notes
 
-- **All 335 raw records are committed**, so every table and figure can be regenerated
+- **All 351 raw records are committed**, so every table and figure can be regenerated
   without retraining. `analyze.py` and `make_macros.py` read the JSON directly.
 - **No hand-written numbers in the paper.** The prose cites macros such as
   `\polyProjAcc` (95.93) and `\polyGap` (1.59) that are generated by `make_macros.py`;

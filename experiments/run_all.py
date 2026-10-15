@@ -305,6 +305,43 @@ def build_groups():
         g.append(cfg)
     G["residual_mnist"] = g
 
+    # ---- pure_poly_mnist：纯多项式，无 bias、无 clamp、无残差 ----
+    # 用户问的问题：只用多项式激活（z + 0.01 z^3），去掉 bias 与截断，
+    # 也不加残差连接，能不能训 100 层？
+    # 答案：不能，而且失败有两种不同机制，取决于有没有射影归一化。
+    #   无归一化：层范数几何增长 -> 第 1 个 epoch 内数值溢出（train_loss 变 nan）。
+    #   射影归一化（norm=l2）：每层范数被钉死在 1.0，数值稳定，但层间梯度
+    #     衰减到 ~1e-12，L30 还行（90%），L50 掉到 65%，L100 塌成常数（11%）。
+    # 结论：scale 控制是"能不能加深"的决定因素，而射影归一化只把可训练
+    # 深度从 ~15 推到 ~30，推不到 100；残差才是到 100+ 的必要条件。
+    g = []
+    for d in [10, 20, 30, 50, 100]:
+        for norm in ["none", "l2"]:
+            cfg = base(activation="poly", norm=norm, depth=d, dataset="mnist",
+                       out="pure_poly_mnist", clamp="none", no_bias=True,
+                       residual="none", init_mode="xavier", seed=42,
+                       tag=f"mnist-L{d}-purepoly-{norm}")
+            g.append(cfg)
+    # pre-norm 放置对照：归一化放在分支内（恒等路径不受影响）是否能救 L100
+    for d in [100]:
+        for pos in ["pre", "post"]:
+            cfg = base(activation="poly", norm="l2", norm_pos=pos, depth=d,
+                       dataset="mnist", out="pure_poly_mnist", clamp="none",
+                       no_bias=True, residual="none", init_mode="xavier",
+                       seed=42, tag=f"mnist-L{d}-purepoly-l2-pos{pos}")
+            g.append(cfg)
+    # 初始化轴：对角初始化 W = diag(1 + 0.1 U(-1,1))，非对角严格为 0
+    # （不做整矩阵 xavier 填充）。效果：可训练深度从 ~30 推到 ~50
+    # （L50 11.4% -> 90.1%），但 L100 仍塌（~10%），层间梯度降到 ~1e-10
+    # —— 初始化能推迟崩溃，不能消除它。
+    for d in [10, 30, 50, 100]:
+        cfg = base(activation="poly", norm="l2", depth=d, dataset="mnist",
+                   out="pure_poly_mnist", clamp="none", no_bias=True,
+                   residual="none", init_mode="diag", seed=42,
+                   tag=f"mnist-L{d}-purepoly-l2-diag")
+        g.append(cfg)
+    G["pure_poly_mnist"] = g
+
     return G
 
 
@@ -329,12 +366,21 @@ def _expected_file(cfg):
     """
     tag = f"{cfg['tag']}_" if cfg.get("tag") else ""
     norm_pos = "-pre" if cfg.get("norm_pos", "post") == "pre" else ""
-    # 残差/初始化仅在非默认时进入文件名，与 harness.py 的 cid 拼接保持逐字一致。
+    # 残差/初始化/纯多项式轴（clamp、bias）必须逐字复刻 harness.py 的 cid 拼接，
+    # 否则 runner 认不出自己刚写出的结果，会把同一批配置无限重跑。
+    # harness.py 的顺序：-{residual} -> -{init} -> -nobias -> -noclamp。
     res_sfx = ""
     if cfg.get("residual", "none") != "none":
         res_sfx += f"-{cfg['residual']}"
     if cfg.get("init_mode", "xavier") != "xavier":
         res_sfx += f"-{cfg['init_mode']}"
+    if cfg.get("no_bias"):
+        res_sfx += "-nobias"
+    clamp = cfg.get("clamp", 10.0)
+    if clamp is None or str(clamp).lower() in ("none", "null", ""):
+        res_sfx += "-noclamp"
+    elif float(clamp) != 10.0:
+        res_sfx += f"-clamp{float(clamp):g}"
     return (
         f"{tag}{cfg.get('dataset', 'mnist')}-{cfg.get('synth_name', 'rings')}-"
         f"{cfg.get('activation', 'relu')}-d{cfg.get('degree', 3)}-"
@@ -358,9 +404,14 @@ def cfg_to_cmd(cfg):
         "synth_seed": "--synth-seed", "in_dim": "--in-dim", "tag": "--tag",
         "lpoly_degree": "--lpoly-degree", "bspline_grid": "--bspline-grid",
         "residual": "--residual", "init_mode": "--init",
+        "clamp": "--clamp", "no_bias": "--no-bias",
     }
     for k, flag in mapping.items():
         if k in cfg and cfg[k] is not None:
+            if isinstance(cfg[k], bool):
+                if cfg[k]:
+                    cmd += [flag]
+                continue
             cmd += [flag, str(cfg[k])]
     # 布尔开关：参考组必须开这两个才能真正逐位复现原脚本。
     # legacy_loader: 用 DataLoader 的全局 RNG shuffle（原脚本做法），而非显式

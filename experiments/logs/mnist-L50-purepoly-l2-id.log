@@ -1,0 +1,11 @@
+[mnist/rings/poly-d3-lam0.01/norm=l2/L50/s42] ep01/10 tr=77.25% te=85.01% (8s)
+[mnist/rings/poly-d3-lam0.01/norm=l2/L50/s42] ep02/10 tr=84.29% te=83.52% (16s)
+[mnist/rings/poly-d3-lam0.01/norm=l2/L50/s42] ep03/10 tr=85.85% te=86.00% (24s)
+[mnist/rings/poly-d3-lam0.01/norm=l2/L50/s42] ep04/10 tr=86.77% te=87.84% (32s)
+[mnist/rings/poly-d3-lam0.01/norm=l2/L50/s42] ep05/10 tr=87.57% te=88.72% (40s)
+[mnist/rings/poly-d3-lam0.01/norm=l2/L50/s42] ep06/10 tr=88.42% te=87.97% (49s)
+[mnist/rings/poly-d3-lam0.01/norm=l2/L50/s42] ep07/10 tr=89.03% te=89.47% (57s)
+[mnist/rings/poly-d3-lam0.01/norm=l2/L50/s42] ep08/10 tr=89.63% te=89.54% (65s)
+[mnist/rings/poly-d3-lam0.01/norm=l2/L50/s42] ep09/10 tr=89.94% te=90.12% (73s)
+[mnist/rings/poly-d3-lam0.01/norm=l2/L50/s42] ep10/10 tr=90.13% te=90.12% (81s)
+=== mnist-L50-purepoly-l2-id_mnist-rings-poly-d3-lam0.01-l2-id-nobias-noclamp-L50-H128-lr0.001-e10-s42: test_acc=90.12% params=888064 time=81.1s

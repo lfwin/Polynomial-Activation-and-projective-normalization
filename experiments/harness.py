@@ -40,8 +40,9 @@ class ProjectivePolynomial(nn.Module):
     ProjectivePolynomialActivation；normalize=False 时只是纯多项式。
     """
 
-    def __init__(self, degree=3, lam=0.01, clamp=10.0, eps=1e-8,
+    def __init__(self, degree=3, lam=0.01, clamp=None, eps=1e-8,
                  normalize=False):
+        # clamp: float 截断阈值；None 表示不截断。
         super().__init__()
         self.degree = degree
         self.lam = lam
@@ -50,7 +51,9 @@ class ProjectivePolynomial(nn.Module):
         self.normalize = normalize
 
     def forward(self, z):
-        z = z.clamp(-self.clamp, self.clamp)
+        # clamp=None 时不截断（论文里的纯多项式设定）。
+        if self.clamp is not None:
+            z = z.clamp(-self.clamp, self.clamp)
         y = z + self.lam * z.pow(self.degree)
         if self.normalize:
             norm = torch.linalg.vector_norm(y, ord=2, dim=1, keepdim=True)
@@ -62,8 +65,12 @@ class ProjectivePolynomial(nn.Module):
                 f"normalize={self.normalize}")
 
 
-def make_activation(name, degree=3, lam=0.01, lpoly_degree=6, bspline_grid=8):
-    """逐元素激活。'poly' 不含 L2 归一化（归一化由 norm 参数控制）。"""
+def make_activation(name, degree=3, lam=0.01, lpoly_degree=6, bspline_grid=8,
+                    clamp=None):
+    """逐元素激活。'poly' 不含 L2 归一化（归一化由 norm 参数控制）。
+
+    clamp=None 时多项式不截断。
+    """
     name = name.lower()
     table = {
         "identity": lambda: nn.Identity(),
@@ -72,9 +79,9 @@ def make_activation(name, degree=3, lam=0.01, lpoly_degree=6, bspline_grid=8):
         "silu": lambda: nn.SiLU(),
         "tanh": lambda: nn.Tanh(),
         "poly": lambda: ProjectivePolynomial(degree=degree, lam=lam,
-                                             normalize=False),
+                                             clamp=clamp, normalize=False),
         "poly_proj": lambda: ProjectivePolynomial(degree=degree, lam=lam,
-                                                  normalize=True),
+                                                  clamp=clamp, normalize=True),
         # 可学习多项式族（"不同多项式激活函数"的学习版对照）
         "legendre": lambda: LegendrePoly(degree=lpoly_degree, B=4.0),
         "bspline": lambda: BSpline(grid=bspline_grid, degree=3, B=2.0,
@@ -239,6 +246,25 @@ def _near_identity_(weight, seed, layer_idx, eps=0.1, init_seed=0):
         weight.copy_(W + eps * R)
 
 
+def _diag_perturbed_(weight, seed, layer_idx, eps=0.1, init_seed=0):
+    """对角初始化：W = diag(1 + eps * U(-1, 1))，非对角严格为 0。
+
+    与 _near_identity_ 的区别：扰动只加在对角线上，不做整矩阵的 xavier 随机
+    填充。非对角为零意味着每层在恒等映射附近只做逐坐标缩放，层与层之间不
+    混叠 —— 用来区分"接近恒等"和"层间随机混合"这两个因素。
+    逐层用独立 generator，结果只依赖 (seed, layer_idx)。
+    """
+    out, inn = weight.shape
+    W = torch.zeros(out, inn)
+    d = min(out, inn)
+    sd = int(seed) if seed is not None else 0
+    g = torch.Generator().manual_seed(sd * 1000 + int(layer_idx) + int(init_seed))
+    jitter = torch.empty(d).uniform_(-1.0, 1.0, generator=g)
+    W[torch.arange(d), torch.arange(d)] = 1.0 + eps * jitter
+    with torch.no_grad():
+        weight.copy_(W)
+
+
 # ============================================================
 # 归一化层
 # ============================================================
@@ -291,7 +317,7 @@ class Net(nn.Module):
     def __init__(self, depth=10, hidden=128, num_classes=10, activation="relu",
                  degree=3, lam=0.01, norm="none", norm_pos="post",
                  in_dim=784, lpoly_degree=6, bspline_grid=8,
-                 residual="none", init="xavier"):
+                 residual="none", init="xavier", clamp=None, bias=True):
         super().__init__()
         if depth < 2:
             raise ValueError("depth 至少为 2")
@@ -299,8 +325,8 @@ class Net(nn.Module):
             raise ValueError("norm_pos ∈ {pre, post}")
         if residual not in ("none", "r1"):
             raise ValueError("residual ∈ {none, r1}")
-        if init not in ("xavier", "id"):
-            raise ValueError("init ∈ {xavier, id}")
+        if init not in ("xavier", "id", "diag"):
+            raise ValueError("init ∈ {xavier, id, diag}")
 
         self.depth = depth
         self.hidden = hidden
@@ -309,6 +335,7 @@ class Net(nn.Module):
         self.norm_pos = norm_pos
         self.residual = residual
         self.init = init
+        self.bias = bias
         self.is_gated = activation in GATE_ACTS
 
         self.blocks = nn.ModuleList()
@@ -319,28 +346,29 @@ class Net(nn.Module):
             prev = in_dim
             for _ in range(depth - 1):
                 self.blocks.append(nn.ModuleDict({
-                    "value": nn.Linear(prev, width),
-                    "gate": nn.Linear(prev, width),
+                    "value": nn.Linear(prev, width, bias=bias),
+                    "gate": nn.Linear(prev, width, bias=bias),
                 }))
                 self.norms.append(make_norm(norm, width))
                 prev = width
             gate_act_name = GATE_ACTS[activation]
             self.gate_act = make_activation(gate_act_name, degree=degree,
-                                            lam=lam)
+                                            lam=lam, clamp=clamp)
             self.gate_act_name = gate_act_name
         else:
             width = hidden
             prev = in_dim
             for _ in range(depth - 1):
-                self.blocks.append(nn.ModuleDict({"lin": nn.Linear(prev, width)}))
+                self.blocks.append(nn.ModuleDict(
+                    {"lin": nn.Linear(prev, width, bias=bias)}))
                 self.norms.append(make_norm(norm, width))
                 prev = width
             self.act = make_activation(activation, degree=degree, lam=lam,
                                        lpoly_degree=lpoly_degree,
-                                       bspline_grid=bspline_grid)
+                                       bspline_grid=bspline_grid, clamp=clamp)
 
         self.width = width
-        self.final = nn.Linear(width, num_classes)
+        self.final = nn.Linear(width, num_classes, bias=bias)
         self._in_dims = [in_dim] + [width] * (depth - 2)
         self.reset_parameters()
 
@@ -349,11 +377,15 @@ class Net(nn.Module):
             for lin in block.values():
                 if self.init == "id":
                     _near_identity_(lin.weight, seed, i)
+                elif self.init == "diag":
+                    _diag_perturbed_(lin.weight, seed, i)
                 else:
                     nn.init.xavier_uniform_(lin.weight)
-                nn.init.zeros_(lin.bias)
+                if lin.bias is not None:
+                    nn.init.zeros_(lin.bias)
         nn.init.xavier_uniform_(self.final.weight)
-        nn.init.zeros_(self.final.bias)
+        if self.final.bias is not None:
+            nn.init.zeros_(self.final.bias)
         for norm in self.norms:
             if isinstance(norm, (nn.BatchNorm1d, nn.LayerNorm)):
                 nn.init.ones_(norm.weight)
@@ -634,7 +666,13 @@ def main():
     p.add_argument("--residual", default="none", choices=["none", "r1"])
     # 初始化：xavier（论文默认）或 id（截断单位阵 + 0.1 倍 xavier 扰动）。
     p.add_argument("--init", dest="init_mode", default="xavier",
-                   choices=["xavier", "id"])
+                   choices=["xavier", "id", "diag"])
+    # 纯多项式设定：关掉截断（--clamp none）与偏置（--no-bias）。
+    # 默认值保持 10.0 / 有偏置，既有配置的 cid 与输出逐位不变。
+    p.add_argument("--clamp", default="10.0",
+                   help="多项式激活的截断阈值；'none' 表示不截断")
+    p.add_argument("--no-bias", action="store_true",
+                   help="所有线性层不使用偏置")
     p.add_argument("--depth", type=int, default=10)
     p.add_argument("--hidden", type=int, default=128)
     p.add_argument("--epochs", type=int, default=10)
@@ -653,6 +691,11 @@ def main():
                    help="不使用显式 generator（复现原脚本用）")
     p.add_argument("--no-diagnostics", action="store_true")
     args = p.parse_args()
+    # --clamp none -> 不截断
+    if str(args.clamp).lower() in ("none", "null", ""):
+        args.clamp = None
+    else:
+        args.clamp = float(args.clamp)
 
     set_seed(args.seed)
     device = torch.device("cpu")
@@ -683,8 +726,9 @@ def main():
                 norm_pos=args.norm_pos,
                 in_dim=in_dim, lpoly_degree=args.lpoly_degree,
                 bspline_grid=args.bspline_grid,
-                residual=args.residual, init=args.init_mode).to(device)
-    if args.init_mode == "id":
+                residual=args.residual, init=args.init_mode,
+                clamp=args.clamp, bias=not args.no_bias).to(device)
+    if args.init_mode in ("id", "diag"):
         # 近恒等初始化必须显式重放一次：__init__ 里的默认 xavier 已经消耗过
         # 全局 RNG，重放保证三种初始化下后续的 shuffle / 采样序列一致。
         model.reset_parameters(seed=args.seed)
@@ -740,6 +784,14 @@ def main():
         res_sfx += f"-{args.residual}"
     if args.init_mode != "xavier":
         res_sfx += f"-{args.init_mode}"
+    # 纯多项式轴：仅在偏离默认（有偏置、截断 10.0）时进入文件名，
+    # 保证既有 335 个配置的 cid 逐字不变、不会重命名或重跑。
+    if args.no_bias:
+        res_sfx += "-nobias"
+    if args.clamp is None:
+        res_sfx += "-noclamp"
+    elif args.clamp != 10.0:
+        res_sfx += f"-clamp{args.clamp:g}"
     cid = (f"{tag}{args.dataset}-{args.synth_name}-"
            f"{args.activation}-d{args.degree}-lam{args.lam:g}-{args.norm}"
            f"{'-pre' if args.norm_pos == 'pre' else ''}"
