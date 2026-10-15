@@ -7,7 +7,7 @@ of What Makes Deep Fully-Connected Networks Trainable*
 **Author:** Xiuyi Yang — fwinlee@gmail.com
 
 This repository contains the complete, self-contained experimental artifact for the paper:
-a unified training harness, all 301 experiment configurations, every raw result file, and the
+a unified training harness, all 335 experiment configurations, every raw result file, and the
 analysis code that turns raw JSON into tables, figures and every number that appears in the
 paper. Every number is generated from the raw results — none is typed by hand.
 
@@ -67,6 +67,49 @@ Depth 10, width 128, MNIST. Every number below is reproduced from `experiments/*
 - **Faithful reproduction.** The reference configuration reproduces the original standalone
   script bit-for-bit: **96.86%** test accuracy, matching `results_10layers/results.json`.
 
+### Depth without normalization: an identity path is enough
+
+The main grid shows the polynomial collapsing to chance at depth 30 *when no normalization
+is applied*. The `residual_mnist` group asks the orthogonal question: with the polynomial
+but **no normalization of any kind**, does an identity residual path alone buy depth?
+
+| Depth-100, poly, no normalization | Init | Test acc. (%) |
+|---|---|---|
+| `h^i = f(W^i h^{i-1})` (plain) | xavier | **10.99** (dead) |
+| `h^i = f(W^i h^{i-1})` (plain) | identity | 31.38 (partial) |
+| `h^i = f(W^i h^{i-1}) + h^{i-1}` (r1) | xavier | **94.50** |
+| `h^i = f(W^i h^{i-1}) + h^{i-1}` (r1) | identity | 93.66 |
+
+Extending the depth sweep with `r1` and xavier init: 10 → 97.11, 50 → 93.97, 100 → 94.50,
+200 → 94.81, **300 → 93.80** — flat to 300 layers, where the plain arm sits at chance by
+depth 50. Two controls in the same group: ReLU + `r1` at depth 100 lands at **94.50**, i.e.
+the polynomial with an identity path matches the mainstream activation *without any
+normalization*; and renormalizing after the sum (the `r1`-then-normalize variant) falls
+straight back to the baseline collapse. The prescription in the paper is in this table:
+control scale, and never renormalize after the residual sum.
+
+### Algebraic side: exact critical sets and Bertini decompositions
+
+The small-model claims are computed, not asserted. Exact rational arithmetic (Sage /
+SymPy) fixes the dimension and degree of the square-loss critical ideal at one hidden unit
+and the real-vs-complex count of its solutions; Bertini then decomposes the critical set
+component by component at sampled points, confirming that the loss is constant on each
+component and that the number of zero Hessian eigenvalues equals the component's dimension.
+
+```bash
+experiments/with_cpu_cap.sh python3 experiments/algebraic_table.sage.py    # dim / degree
+experiments/with_cpu_cap.sh python3 experiments/algebraic_real_points.py   # real-vs-complex
+experiments/with_cpu_cap.sh python3 experiments/bertini_decomp.py          # components
+experiments/with_cpu_cap.sh python3 experiments/loss_surface.py            # loss-surface grid
+experiments/with_cpu_cap.sh python3 experiments/init_probe.py             # init assertions
+```
+
+`with_cpu_cap.sh` pins these runs to 10 cores. `bertini_decomp.py` shells out to Bertini
+(`BERTINI=/path/to/bertini`, default `bertini` on `PATH`) under `taskset`. Single
+configurations whose exact computation exceeds 15 minutes are discarded rather than
+reported. The solver's scratch directory `experiments/bertini_runs/` is not committed;
+`dump_bertini_raw.py` reduces it to the two committed JSON files above.
+
 ---
 
 ## 2. Repository layout
@@ -78,14 +121,21 @@ Depth 10, width 128, MNIST. Every number below is reproduced from `experiments/*
 ├── run.sh / run_experiments.sh               # wrapper for a single training run
 ├── experiments/
 │   ├── harness.py            # the unified training/eval harness (model, data, metrics)
-│   ├── run_all.py            # the full 301-config experiment grid + worker orchestration
+│   ├── run_all.py            # the full 335-config experiment grid + worker orchestration
 │   ├── analyze.py            # raw JSON -> paper/tables/*.tex + paper/figures/*.pdf
 │   ├── make_macros.py        # raw JSON -> paper/macros.tex (every number in the paper)
 │   ├── verify_fidelity.py    # bit-for-bit check against the original script
 │   ├── diag_identity.py      # identity-activation diagnostic
+│   ├── with_cpu_cap.sh       # pins the algebraic/numerical probes to 10 cores
+│   ├── init_probe.py         # initialization assertions (Jacobian, grad norm, Hessian)
+│   ├── loss_surface.py       # square-loss surface grid at tiny width
+│   ├── algebraic_table.sage  # exact dim / degree of the critical ideal
+│   ├── algebraic_real_points.py  # real vs complex solutions, exact
+│   ├── bertini_decomp.py     # Bertini component decomposition + per-component probes
+│   ├── dump_bertini_raw.py   # bertini_runs/ scratch -> bertini_*.json
 │   ├── status.sh             # progress overview of the result directory
 │   ├── logs/                 # raw stdout of the experiment runs (evidence trail)
-│   └── <group>/*.json        # 301 raw result records, one file per configuration
+│   └── <group>/*.json        # 335 raw result records, one file per configuration
 └── (paper/ — built locally, not tracked; see "Reproducing" below)
 ```
 
@@ -109,7 +159,8 @@ Result groups under `experiments/`:
 | `seeds` | 25 | 5-seed variance study |
 | `ref_orig` / `ref_fidelity` | 1 + 1 | faithful reproduction of the original script |
 | `synth3` / `synth3_depth` / `synth3_norm` | 64 + 18 + 32 | synthetic diagnostic tasks |
-| **total** | **301** | |
+| `residual_mnist` | 34 | depth 100 identity-residual study + depth sweep to 300, no normalization |
+| **total** | **335** | |
 
 ---
 
@@ -157,7 +208,7 @@ hardcoded to a machine.
 # 1. Confirm the harness reproduces the original standalone script bit-for-bit
 python experiments/verify_fidelity.py          # expect 96.86%
 
-# 2. Run the full grid (301 configs). Pick --workers to match your core count.
+# 2. Run the full grid (335 configs). Pick --workers to match your core count.
 python experiments/run_all.py --group all --workers 8
 python experiments/run_all.py --list           # inspect groups without running
 
@@ -167,7 +218,7 @@ python experiments/analyze.py                  # -> paper/tables, paper/figures
 python experiments/make_macros.py --check      # -> paper/macros.tex + consistency check
 ```
 
-Step 3 needs no retraining: the 301 raw JSON records are committed, so all tables,
+Step 3 needs no retraining: the 335 raw JSON records are committed, so all tables,
 figures and number macros can be regenerated from a clean clone.
 
 The full grid is dominated by single-threaded training runs executed in parallel worker
@@ -178,7 +229,7 @@ processes; `--workers 8` is a safe default on a 20-core machine. To re-run one g
 
 ## 5. Reproducibility notes
 
-- **All 301 raw records are committed**, so every table and figure can be regenerated
+- **All 335 raw records are committed**, so every table and figure can be regenerated
   without retraining. `analyze.py` and `make_macros.py` read the JSON directly.
 - **No hand-written numbers in the paper.** The prose cites macros such as
   `\polyProjAcc` (95.93) and `\polyGap` (1.59) that are generated by `make_macros.py`;

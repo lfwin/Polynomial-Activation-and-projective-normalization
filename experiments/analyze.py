@@ -89,7 +89,7 @@ def key_of(r):
 # 独立参考组：与主网格同配置但 epoch 预算不同（ref_orig=20ep, ref_fidelity=2ep）。
 # 它们共用同一个配置 key，混进分析总体会让未过滤 epochs 的查询取到错误记录
 # （\refTestAcc 会从 20ep 的 96.95 掉回 10ep 的 95.93）。默认排除，需要时用 out=。
-_SOLO_GROUPS = {"ref_orig", "ref_fidelity"}
+_SOLO_GROUPS = {"ref_orig", "ref_fidelity", "residual_mnist"}
 
 
 def _is_solo(r):
@@ -859,6 +859,99 @@ def table_width(recs, out_dir):
                                                  encoding="utf-8")
 
 
+def table_residual(recs, out_dir):
+    """表：恒等残差能不能在没有归一化的深层网络里救活多项式激活。
+
+    注意：这组配置放在 residual_mnist/ 且属于 _SOLO_GROUPS，所有查询必须显式
+    传 out="residual_mnist"，否则会混进主网格的按深度查询。
+    """
+    OUT = "residual_mnist"
+    # (残差, 初始化, 行标签)
+    rows = [("none", "xavier", r"None / xavier"),
+            ("none", "id", r"None / identity"),
+            ("r1", "xavier", r"Residual / xavier"),
+            ("r1", "id", r"Residual / identity")]
+    # 深度扫描：L10 只跑 1 个种子，其余深度 2 个（见 run_all.py 的 residual 组）
+    sweep = [10, 50, 200, 300]
+
+    def cell(res, initm, d, seed=None):
+        q = dict(out=OUT, dataset="mnist", activation="poly", norm="none",
+                 depth=d, hidden=128, residual=res, init_mode=initm)
+        if seed is not None:
+            q["seed"] = seed
+        return one(recs, **q)
+
+    lines = []
+    L = lines.append
+    L(r"\begin{table}[t]")
+    L(r"\centering")
+    L(r"\caption{Identity residual connections without any normalization "
+      r"(MNIST, polynomial activation $z+\lambda z^{3}$, $L=100$, 128 hidden "
+      r"units, 10 epochs). Entry is test accuracy (\%) as mean $\pm$ standard "
+      r"deviation over 4 seeds; the last column is the number of predicted "
+      r"classes. The residual uses no projection and no normalization of any "
+      r"kind: $h^i = \varphi(W^i h^{i-1}) + h^{i-1}$ (\texttt{norm=none}).}")
+    L(r"\label{tab:residual}")
+    L(r"\small")
+    L(r"\begin{tabular}{lcc}")
+    L(r"\toprule")
+    L(r"Configuration & Test acc.\ (\%) & Pred.\ classes \\")
+    L(r"\midrule")
+    for res, initm, label in rows:
+        vals, ncls = [], []
+        for s in [42, 43, 44, 45]:
+            r = cell(res, initm, 100, s)
+            if r:
+                vals.append(r["test_accuracy"] * 100)
+                if r.get("confusion"):
+                    C = np.asarray(r["confusion"])
+                    ncls.append(int((C.sum(0) > 0).sum()))
+        if vals:
+            L(f"{label} & {np.mean(vals):.2f} $\\pm$ {np.std(vals, ddof=1):.2f} "
+              f"& {max(ncls) if ncls else '--'} \\\\")
+        else:
+            L(f"{label} & -- & -- \\\\")
+    L(r"\bottomrule")
+    L(r"\end{tabular}")
+    L(r"\end{table}")
+    (Path(out_dir) / "tab_residual.tex").write_text("\n".join(lines),
+                                                    encoding="utf-8")
+
+    # 残差的深度扫描（xavier，2 seed）：看可训练深度能推到多远
+    lines2 = []
+    L = lines2.append
+    L(r"\begin{table}[t]")
+    L(r"\centering")
+    L(r"\caption{Depth scaling with the identity residual, no normalization "
+      r"(MNIST, polynomial activation, xavier init, 2 seeds). The plain polynomial column "
+      r"is at chance from $L=50$ onward, either as a constant predictor or as "
+      r"an uninformative scatter over the classes; the residual column stays "
+      r"near its $L=10$ value out to $L=300$. This collapsed column is not "
+      r"comparable across tables to the last digit (Section~\ref{sec:res-num}).}")
+    L(r"\label{tab:residualdepth}")
+    L(r"\small")
+    L(r"\begin{tabular}{l" + "r" * len(sweep) + r"}")
+    L(r"\toprule")
+    L(r"Configuration & " + " & ".join(str(d) for d in sweep) + r" \\")
+    L(r"\midrule")
+    for res, label in [("none", r"Poly (no residual)"),
+                       ("r1", r"Poly + residual")]:
+        cells = []
+        for d in sweep:
+            vals = []
+            for s in (42, 43):
+                r = cell(res, "xavier", d, s)
+                if r:
+                    vals.append(r["test_accuracy"] * 100)
+            cells.append(f"{np.mean(vals):.2f}" if vals else "--")
+        L(f"{label} & " + " & ".join(cells) + r" \\")
+    L(r"\bottomrule")
+    L(r"\end{tabular}")
+    L(r"\end{table}")
+    (Path(out_dir) / "tab_residual_depth.tex").write_text("\n".join(lines2),
+                                                          encoding="utf-8")
+
+
 def fig_poly_degree(recs, out_dir):
     """图：可学习多项式阶数 vs 测试准确率。"""
     fig, ax = plt.subplots(figsize=(4.6, 3.1))
@@ -1103,6 +1196,233 @@ def table_ref(recs, out_dir):
                                                encoding="utf-8")
 
 
+def table_algebraic(recs, out_dir, json_path=None):
+    """表：未截断多项式网络 + square loss 的临界点理想 dim/degree。
+
+    数字来源是 experiments/algebraic_table.json —— 由
+    experiments/algebraic_table.sage（Sage/Groebner）写出，唯一数据源，
+    本函数只做排版，绝不手写数字。
+    """
+    import json
+    if json_path is None:
+        json_path = Path(__file__).resolve().parent / "algebraic_table.json"
+    data = json.loads(Path(json_path).read_text(encoding="utf-8"))
+    by = {r["label"]: r for r in data}
+
+    # (JSON label, 配置描述, depth, "$m$, $n$") —— 顺序即表行顺序
+    spec = [
+        ("plain-depth1-m1-n2", r"Plain, $\varphi = z + \lambda z^{3}$", "1", "1, 2"),
+        ("plain-depth1-m1-n3", r"Plain, $\varphi = z + \lambda z^{3}$", "1", "1, 3"),
+        ("plain-depth1-m2-n2", r"Plain, $\varphi = z + \lambda z^{3}$", "1", "2, 2"),
+        ("plain-depth2-w1", r"Plain, $\varphi = z + \lambda z^{3}$", "2", "1, 3"),
+        ("__mid__", None, "", ""),
+        ("cubic-depth1-m1-n2", r"Plain, $\varphi = z^{3}$", "1", "1, 2"),
+        ("cubic-depth1-m2-n2", r"Plain, $\varphi = z^{3}$", "1", "2, 2"),
+        ("__mid__", None, "", ""),
+        ("residual-scalar-x1/2-y1",
+         r"Residual (Eq.~\eqref{eq:residual}), no norm", "2", "1, 1"),
+        ("__mid__", None, "", ""),
+        # 同尺寸对照：宽 2、深 2、单样本，只切换 residual / projection 开关
+        ("composite-residual", r"Residual only, no norm", "2", "2, 1"),
+        ("composite-proj-only", r"Projection only", "2", "2, 1"),
+        ("composite-residual-proj", r"Residual $+$ projection", "2", "2, 1"),
+    ]
+
+    lines = []
+    L = lines.append
+    L(r"\begin{table}[t]")
+    L(r"\centering")
+    L(r"\caption{Critical-point ideal of the untruncated polynomial network "
+      r"under the square loss, $\varphi(z)=z+\lambda z^{3}$ with "
+      r"$\lambda = 0.01$. $m$ is the number of hidden units, $n$ the number of "
+      r"training samples, and $|I|$ the degree of the ideal (stationary points "
+      r"counted over $\mathbb{C}$), reported only when $\dim I = 0$. Every row "
+      r"is a small model --- at most two hidden layers, at most three samples, "
+      r"at most seven variables --- because the Grobner computation, not the "
+      r"architecture, sets the ceiling. A positive dimension means the "
+      r"stationary set is not a finite collection of points.}")
+    L(r"\label{tab:algebraic}")
+    L(r"\small")
+    L(r"\begin{tabular}{llrrrl}")
+    L(r"\toprule")
+    L(r"Configuration & depth & $m$, $n$ & vars & $\dim I$ & $|I|$ \\")
+    L(r"\midrule")
+    for label, desc, depth, mn in spec:
+        if label == "__mid__":
+            L(r"\midrule")
+            continue
+        r = by.get(label)
+        if r is None:
+            # 该配置要么没算，要么超过 15 分钟上限被放弃 —— 跳过该行，不中断。
+            print(f"  [warn] tab_algebraic: 跳过 {label}（无结果或超时放弃）")
+            continue
+        deg = r.get("degree")
+        deg_cell = deg if deg not in (None, "0") else r"---"
+        L(f"{desc} & ${depth}$ & ${mn}$ & {r['nvars']} & ${r['dim']}$ & {deg_cell} \\\\")
+    L(r"\bottomrule")
+    L(r"\end{tabular}")
+    L(r"\end{table}")
+    (Path(out_dir) / "tab_algebraic.tex").write_text("\n".join(lines),
+                                                    encoding="utf-8")
+
+
+def table_bertini(recs, out_dir, json_path=None):
+    """表：Bertini 数值不可约分解 —— 每个 component 的维数、次数、loss、零特征值数。
+
+    数字来源 experiments/bertini_decomp.json + experiments/bertini_samples.json
+    （由 experiments/bertini_decomp.py 驱动 Bertini v1.6 写出），唯一数据源；
+    本函数只排版。禁手写数字。
+
+    同时在表里检验前作 arXiv:2102.04338 的两条猜想：
+      H2  loss 在每个不可约 component 上恒定（spread 在双精度舍入量级）；
+      H3  generic 点 Hessian 零特征值个数 == component 维数（只数可训练参数）。
+    行按 (dim, deg, loss, const, nzero) 分组，多重数写在 n 列。
+    """
+    import json
+    exp = Path(__file__).resolve().parent
+    if json_path is None:
+        json_path = exp / "bertini_decomp.json"
+    dec = json.loads(Path(json_path).read_text(encoding="utf-8"))
+    by = {r["label"]: r for r in dec}
+    ok = [r for r in dec if r.get("status") == "ok"]
+    ntrain_max = max((r.get("ntrain") or 0) for r in ok)
+    secs_max = max((r.get("secs") or 0.0) for r in ok)
+
+    # 系统顺序（= 表行顺序）；描述、深度、"(m,n)"、可训练参数个数
+    spec = [
+        ("plain-depth1-m1-n2", r"Plain $z{+}\lambda z^{3}$", "1", "1, 2"),
+        ("plain-depth1-m1-n3", r"Plain $z{+}\lambda z^{3}$", "1", "1, 3"),
+        ("plain-depth1-m2-n2", r"Plain $z{+}\lambda z^{3}$", "1", "2, 2"),
+        ("__mid__", None, "", ""),
+        ("cubic-depth1-m1-n2", r"Plain $z^{3}$", "1", "1, 2"),
+        ("cubic-depth1-m2-n2", r"Plain $z^{3}$", "1", "2, 2"),
+        ("__mid__", None, "", ""),
+        ("proj-m1-n1", r"Projection $z{+}\lambda z^{3}$", "1", "1, 1"),
+    ]
+
+    def fmt_loss(lm):
+        """component 上的 loss 均值排版；双精度舍入量级一律记 0。"""
+        if lm is None:
+            return None
+        re_, im_ = lm
+        # 双精度舍入量级（|Im| <= 1e-12 相对量级）一律记实数；负零也归一为 0
+        if abs(im_) <= 1e-12 * max(abs(re_), 1.0):
+            if abs(re_) < 1e-12:
+                return "0"
+            return f"{re_:.8g}"
+        if abs(re_) < 1e-12:
+            return f"{im_:.6g}i"
+        return f"{re_:.6g}{'+' if im_ >= 0 else '-'}{abs(im_):.6g}i"
+
+    def fmt_nz(vals):
+        """零特征值个数集合，如 0 / 2。"""
+        v = sorted({int(x) for x in (vals or []) if x is not None})
+        if not v:
+            return "---"
+        return str(v[0]) if len(v) == 1 else "/".join(str(x) for x in v)
+
+    def esc(t):
+        return t.replace("\\\\", "\\")
+
+    # H2/H3 的真假由数据判定，caption 据此成句（结论不手写）
+    h2_ok = h3_ok = True
+    n_gen = 0
+    for _r in ok:
+        for _c in _r.get("components", []):
+            if _c.get("pole_only"):
+                continue
+            n_gen += 1
+            if (_c.get("loss_spread_rel") or 0.0) >= 1e-9:
+                h2_ok = False
+            _nz = [x for x in (_c.get("n_zero_eigs_phys") or []) if x is not None]
+            if _nz and sorted(set(_nz)) != [int(_c["dim"])]:
+                h3_ok = False
+    if h2_ok and h3_ok:
+        h23 = ("Both hypotheses hold on every one of the " + str(n_gen)
+               + " genuine components.")
+    else:
+        _f = ", ".join((["H2"] if not h2_ok else []) + (["H3"] if not h3_ok else []))
+        h23 = "The hypothesis " + _f + " fails on at least one component."
+
+    lines = []
+    L = lines.append
+    nrows = ncomp = 0
+    body = []
+    for label, desc, depth, mn in spec:
+        if label == "__mid__":
+            body.append(("\\midrule", None))
+            continue
+        r = by.get(label)
+        if r is None or r.get("status") != "ok":
+            print(f"  [warn] tab_bertini: 跳过 {label}（无结果或超时放弃）")
+            continue
+        comps = [c for c in r.get("components", []) if not c.get("pole_only")]
+        ncomp += len(comps)
+        # 分组：同一 (dim, deg, loss, const, nzero) 的多个 component 合并成一行
+        groups = []
+        for c in comps:
+            ls = fmt_loss(c.get("loss_mean"))
+            spr = c.get("loss_spread_rel")
+            const = r"$\cdot$" if (spr is not None and spr < 1e-9) else "no"
+            nz = fmt_nz(c.get("n_zero_eigs_phys"))
+            key = (int(c["dim"]), int(c["degree"]), ls, const, nz)
+            if groups and groups[-1][0] == key:
+                groups[-1][1] += 1
+            else:
+                groups.append([key, 1])
+        first = True
+        for (key, cnt) in groups:
+            dim, deg, ls, const, nz = key
+            cfg = esc(desc) if first else ""
+            dp = f"${depth}$" if first else ""
+            mnc = f"${mn}$" if first else ""
+            first = False
+            nrows += 1
+            body.append((
+                f"{cfg} & {dp} & {mnc} & ${dim}$ & {deg} & "
+                f"${ls}$ & {const} & ${nz}$ & {cnt} \\\\", None))
+    tot = len([b for b in body if b[1] is None])
+
+    L(r"\begin{table}[t]")
+    L(r"\centering")
+    L(r"\caption{Numerical irreducible decomposition of the critical ideal by "
+      r"Bertini~v1.6 for the small models of Table~\ref{tab:algebraic}. Each row is "
+      r"one irreducible component of the critical set of the loss (all rows grouped "
+      r"by identical invariants, the multiplicity in the `n' column): its dimension, "
+      r"its degree (the number of witness points, i.e.\ the number of points a "
+      r"generic linear slice meets it in), the value of the loss on it, whether that "
+      r"loss is constant, and the number of zero eigenvalues of the loss Hessian at "
+      r"a generic point of it, taken over the trainable parameters only. `$\cdot$' in "
+      r"the `const' column means the loss is constant on the component: the spread "
+      r"over its witness points is at double-precision round-off "
+      r"(Hypothesis~H2 of~\cite{xiuyi2021landscape}); the `zero eig.' column then "
+      r"tests Hypothesis~H3: it must reproduce the `dim' column. "
+      + h23 + " Components lying in the cleared denominator "
+      r"$\lVert h\rVert^{2}=0$, where the loss is undefined, are artifacts of "
+      r"clearing the denominator and are excluded. The largest model here uses "
+      + "$" + str(ntrain_max) + "$ trainable parameters and the slowest "
+      + "decomposition took $" + ("%.0f" % secs_max) + "$\,s, well inside "
+      + "the budget of Sec.~" + r"\ref{sec:setup}." + "}")
+    L(r"\label{tab:bertini}")
+    L(r"\small")
+    L(r"\begin{tabular}{llrrrrrrr}")
+    L(r"\toprule")
+    L(r"Configuration & depth & $m,n$ & dim & deg & loss & const & "
+      r"zero eig. & n \\")
+    L(r"\midrule")
+    for txt, _ in body:
+        if txt == "\\midrule":
+            L(r"\midrule")
+        else:
+            L(txt)
+    L(r"\bottomrule")
+    L(r"\end{tabular}")
+    L(r"\end{table}")
+    (Path(out_dir) / "tab_bertini.tex").write_text("\n".join(lines) + "\n",
+                                                  encoding="utf-8")
+    print(f"  tab_bertini: {ncomp} 个非极点 component -> {nrows} 行")
+    return ncomp
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--exp-dir", default="experiments")
@@ -1132,6 +1452,9 @@ def main():
     table_learnpoly(recs, args.table_dir)
     table_width(recs, args.table_dir)
     table_ref(recs, args.table_dir)
+    table_residual(recs, args.table_dir)
+    table_algebraic(recs, args.table_dir)
+    table_bertini(recs, args.table_dir)
     fig_activation(recs, args.fig_dir)
     fig_norm(recs, args.fig_dir)
     fig_degree_heatmap(recs, args.fig_dir)

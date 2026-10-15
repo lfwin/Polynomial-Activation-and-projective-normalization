@@ -1,0 +1,36 @@
+[
+ {
+  "label": "plain-depth1-m1-n2",
+  "m": 1,
+  "n": 2,
+  "ncomplex": 5,
+  "nreal": 1,
+  "nreal_elim": 1,
+  "elimination": "w1*(583*w1**2 + 70000)*(839*w1**2 + 50000)/489137",
+  "real_points": [
+   [
+    "0",
+    "0"
+   ]
+  ],
+  "max_residual": 0.0,
+  "secs": 0.14
+ },
+ {
+  "label": "plain-depth1-m1-n3",
+  "m": 1,
+  "n": 3,
+  "ncomplex": 5,
+  "nreal": 1,
+  "nreal_elim": 1,
+  "elimination": "w1*(16081*w1**2 + 790000)*(26407343*w1**2 + 575270000)/424656482783",
+  "real_points": [
+   [
+    "0",
+    "0"
+   ]
+  ],
+  "max_residual": 0.0,
+  "secs": 0.05
+ }
+]

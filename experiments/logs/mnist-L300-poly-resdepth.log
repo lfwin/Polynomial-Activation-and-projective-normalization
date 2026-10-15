@@ -1,0 +1,11 @@
+[mnist/rings/poly-d3-lam0.01/norm=none/L300/s43] ep01/10 tr=22.30% te=51.54% (115s)
+[mnist/rings/poly-d3-lam0.01/norm=none/L300/s43] ep02/10 tr=66.21% te=77.02% (236s)
+[mnist/rings/poly-d3-lam0.01/norm=none/L300/s43] ep03/10 tr=79.28% te=85.47% (366s)
+[mnist/rings/poly-d3-lam0.01/norm=none/L300/s43] ep04/10 tr=84.33% te=86.03% (476s)
+[mnist/rings/poly-d3-lam0.01/norm=none/L300/s43] ep05/10 tr=86.61% te=85.07% (546s)
+[mnist/rings/poly-d3-lam0.01/norm=none/L300/s43] ep06/10 tr=88.82% te=89.29% (609s)
+[mnist/rings/poly-d3-lam0.01/norm=none/L300/s43] ep07/10 tr=90.96% te=92.90% (671s)
+[mnist/rings/poly-d3-lam0.01/norm=none/L300/s43] ep08/10 tr=92.54% te=88.84% (732s)
+[mnist/rings/poly-d3-lam0.01/norm=none/L300/s43] ep09/10 tr=94.12% te=93.42% (792s)
+[mnist/rings/poly-d3-lam0.01/norm=none/L300/s43] ep10/10 tr=95.41% te=94.75% (852s)
+=== mnist-L300-poly-resdepth_mnist-rings-poly-d3-lam0.01-none-r1-L300-H128-lr0.001-e10-s43: test_acc=94.75% params=5022346 time=852.1s

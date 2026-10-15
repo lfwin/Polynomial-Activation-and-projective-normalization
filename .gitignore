@@ -2,8 +2,12 @@
 .venv/
 venv/
 env/
+/data
 data/
 runs/
+
+# Bertini 求解器工作目录（原始数据由 experiments/dump_bertini_raw.py 抽取进 bertini_*.json）
+experiments/bertini_runs/
 
 # Python
 __pycache__/

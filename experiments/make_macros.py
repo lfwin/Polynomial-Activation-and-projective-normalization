@@ -37,7 +37,7 @@ def hid_for(act):
 # 共用同一个配置 key，若混在同一批记录里，任何未过滤 epochs 的查询都可能
 # 取到它们（例如 \polyProjAcc 会从 10ep 的 95.93 被顶成 20ep 的 96.95）。
 # 因此默认把它们排除在分析总体之外，需要时用 out="ref_orig" 显式点名。
-_SOLO_GROUPS = {"ref_orig", "ref_fidelity"}
+_SOLO_GROUPS = {"ref_orig", "ref_fidelity", "residual_mnist"}
 
 
 def _is_solo(r):
@@ -86,13 +86,24 @@ def one(recs, **q):
 
 
 def acc2(v):
+    """准确率格式化为两位小数字符串。"""
     return f"{v * 100:.2f}"
+
+
+def sci(x):
+    """把浮点写成 LaTeX 科学计数法：3.16e-16 -> 3.16\\times10^{-16}。"""
+    if x == 0:
+        return "0"
+    e = int(np.floor(np.log10(abs(x))))
+    m = x / 10.0 ** e
+    return rf"{m:.2f}\times10^{{{e}}}"
 
 
 # LaTeX 控制序列名只能由字母组成，宏名里绝不能出现数字，
 # 否则 \newcommand{\L20PolyAcc} 会被 TeX 解析成 \L + 文本，编译报错。
 _N2W = {2: "two", 3: "three", 4: "four", 5: "five", 10: "ten",
-        15: "fifteen", 20: "twenty", 30: "thirty", 50: "fifty"}
+        15: "fifteen", 20: "twenty", 30: "thirty", 50: "fifty",
+        100: "hundred", 200: "twohundred", 300: "threehundred"}
 
 
 def n2w(n):
@@ -394,6 +405,125 @@ def build(recs):
     if r50:
         s("LfiftyCollapseAcc", acc2(r50["test_accuracy"]))
 
+    # ---------- 恒等残差：无归一化的深层网络（residual_mnist 组）----------
+    # 这一组回答一个独立于射影设计的问题：把归一化整个拿掉，只给多项式
+    # 堆叠加一条恒等路径，网络还能不能在 L=100 以上训练。答案是能，而且
+    # 100--300 层基本平。所有查询都必须显式 out="residual_mnist"（该组在
+    # _SOLO_GROUPS 里，不会混进主网格）。
+    def _res(res, initm, d, seed=None):
+        q = dict(out="residual_mnist", dataset="mnist", activation="poly",
+                 norm="none", depth=d, hidden=ELEM_H, residual=res,
+                 init_mode=initm, epochs=10)
+        if seed is not None:
+            q["seed"] = seed
+        return one(recs, **q)
+
+    def _ms(res, initm, d):
+        """4 seed 的均值与样本标准差（%，ddof=1）。"""
+        vals = [r["test_accuracy"] for s in [42, 43, 44, 45]
+                if (r := _res(res, initm, d, s)) is not None]
+        if not vals:
+            return None
+        return (float(np.mean(vals)) * 100,
+                float(np.std(vals, ddof=1) * 100), len(vals))
+
+    # L100 主对照：4 种（残差 × 初始化）组合
+    for res, initm, lbl in [("none", "xavier", "ResNoneXavier"),
+                            ("none", "id", "ResNoneId"),
+                            ("r1", "xavier", "ResRoneXavier"),
+                            ("r1", "id", "ResRoneId")]:
+        st = _ms(res, initm, 100)
+        if st:
+            base = f"residual{lbl}"
+            s(f"{base}Mean", f"{st[0]:.2f}")
+            s(f"{base}Std", f"{st[1]:.2f}")
+            s(f"{base}N", str(st[2]))
+    # 无残差两组的崩溃幅度（与随机水平 10% 的差）
+    for initm, lbl in [("xavier", "ResNoneXavier"), ("id", "ResNoneId")]:
+        st = _ms("none", initm, 100)
+        if st:
+            s(f"residual{lbl}GapPt", f"{st[0] - 10.0:+.2f}")
+    # 残差带来的提升（不带符号，文本里读作 "gains of X and Y points" / "X points below"）
+    for initm, lbl in [("xavier", "Xavier"), ("id", "Id")]:
+        a = _ms("none", initm, 100)
+        b = _ms("r1", initm, 100)
+        if a and b:
+            s(f"residual{lbl}GainPt", f"{b[0] - a[0]:.2f}")
+    # 深度扫描（xavier）：与 Table~\ref{tab:residualdepth} 逐字一致 —— 每个深度都用
+    # seed 42/43 两个种子，且先换算成百分数再取均值（否则 10.815 的浮点表示会让
+    # 正文 10.81、表格 10.82）。
+    def _sweep_mean(res, d):
+        vals = [r["test_accuracy"] * 100 for s_ in (42, 43)
+                if (r := _res(res, "xavier", d, s_)) is not None]
+        return float(np.mean(vals)) if vals else None
+
+    for d in [10, 50, 200, 300]:
+        for res, lbl in [("none", "ResNone"), ("r1", "ResRone")]:
+            m = _sweep_mean(res, d)
+            if m is not None:
+                s(f"residual{lbl}L{n2w(d)}Acc", f"{m:.2f}")
+    # 最深的残差位置：L300 的准确率，以及它相对 L50 的衰减（文本里说的是
+    # "sixfold increase in depth"，L50→L300 正好 6 倍，必须用同一对深度）。
+    m300, m50 = _sweep_mean("r1", 300), _sweep_mean("r1", 50)
+    if m300 is not None and m50 is not None:
+        s("residualDeepestDepth", "300")
+        s("residualDeepestAcc", f"{m300:.2f}")
+        s("residualDeepDropPt", f"{m50 - m300:+.2f}")
+    # ReLU + 残差的对照（同样无归一化）
+    relu_vals = [r["test_accuracy"] for sfx in (42, 43)
+                 if (r := one(recs, out="residual_mnist", dataset="mnist",
+                              activation="relu", norm="none", depth=100,
+                              hidden=ELEM_H, residual="r1",
+                              init_mode="xavier", seed=sfx, epochs=10))
+                 is not None]
+    if relu_vals:
+        s("residualReluRoneMean", f"{np.mean(relu_vals) * 100:.2f}")
+        s("residualReluRoneN", str(len(relu_vals)))
+    # 每个残差配置的末层激活范数（说明残差是在"范数自由增长"下工作的）
+    rlast = _res("r1", "xavier", 100, 42)
+    if rlast and rlast.get("act_norm_end"):
+        s("residualRoneActNormLast", f"{rlast['act_norm_end'][-1]:.1f}")
+    rnone = _res("none", "xavier", 100, 42)
+    if rnone and rnone.get("act_norm_end"):
+        s("residualNoneActNormLast", f"{rnone['act_norm_end'][-1]:.1f}")
+
+    # 崩溃的机制性证据：饱和上界与预测类别数。
+    # 截断立方 φ(z)=clamp(z,±c)+λ clamp(z,±c)³ 在 |z|≥c 时逐单元取到常量
+    # 20 = c + λc³（c=10, λ=0.01）；若整层都饱和且方向一致，隐层范数就是
+    # 20√H = 226.27。实测无残差组恰好落在这个数上 → 是"纯尺度爆炸 + 逐单元
+    # 饱和"，不是射影把方向压没（本设定根本没有归一化）。
+    sat = 20.0 * float(ELEM_H) ** 0.5
+    s("residualSatBound", f"{sat:.2f}")
+
+    def _ncls(res, initm):
+        out_ = []
+        for sd in [42, 43, 44, 45]:
+            r = _res(res, initm, 100, sd)
+            if r and r.get("confusion"):
+                C = np.asarray(r["confusion"])
+                out_.append(int((C.sum(0) > 0).sum()))
+        return out_
+
+    nx, ni = _ncls("none", "xavier"), _ncls("none", "id")
+    rx = _ncls("r1", "xavier")
+    if nx:
+        s("residualResNoneXavierNcls", str(max(nx)))
+    if ni:
+        s("residualResNoneIdNcls", str(max(ni)))
+        s("residualResNoneIdNclsMin", str(min(ni)))
+    if rx:
+        s("residualResRoneXavierNcls", str(min(rx)))
+    # 无残差组的末层激活范数（4 seed 平均），与饱和上界对照
+    for res, initm, lbl in [("none", "xavier", "ResNoneXavier"),
+                            ("none", "id", "ResNoneId"),
+                            ("r1", "xavier", "ResRoneXavier"),
+                            ("r1", "id", "ResRoneId")]:
+        vals = [(r["act_norm_end"][-1]) for sd in [42, 43, 44, 45]
+                if (r := _res(res, initm, 100, sd)) is not None
+                and r.get("act_norm_end")]
+        if vals:
+            s(f"residual{lbl}ActNormLast", f"{np.mean(vals):.1f}")
+
     # ---------- 多 seed ----------
     for lbl, q in [("Relu", dict(activation="relu", norm="none")),
                    ("Polyproj", dict(activation="poly", norm="l2")),
@@ -443,6 +573,249 @@ def build(recs):
             if "relu" in vals:
                 s(f"synth{ds_tag}Relu", acc2(vals["relu"]))
 
+    # ---------- 小块损失曲面的关键点（loss_surface.json）----------
+    # 数据源：experiments/loss_surface.py 的数值输出（多起点优化 + autograd 梯度范数）。
+    # 注意宏名只能含字母，所以 d1/d2/d3 写成 one/two/three。
+    ls_path = Path(__file__).resolve().parent / "loss_surface.json"
+    if ls_path.exists():
+        ls = json.loads(ls_path.read_text(encoding="utf-8"))
+        for key, tag in [("d1", "One"), ("d2", "Two"), ("d3", "Three")]:
+            blk = ls.get(key)
+            if not blk:
+                continue
+
+            name_map = {"t0": "CritZero", "crit": "Crit", "origin": "Crit",
+                        "min": "Min", "tmin": "Min", "inf": "Inf"}
+            words = ["", "Two", "Three", "Four", "Five", "Six"]
+            seen = {}
+            for p in blk["points"]:
+                # 极小点（is_min）优先归到 Min，其余按名字归类
+                base = "Min" if p.get("is_min") else name_map.get(p["name"], "Crit")
+                seen[base] = seen.get(base, 0) + 1
+                # 宏名只能含字母，重复出现时用词缀而非数字
+                pname = base if seen[base] == 1 else f"{base}{words[seen[base] - 1]}"
+                s(f"lossSurf{tag}{pname}Loss", f"{p['loss']:.4f}")
+                g = p.get("gradnorm")
+                s(f"lossSurf{tag}{pname}Grad", "---" if g is None else sci(g))
+                c = [v for v in p["coord"] if v is not None]
+                s(f"lossSurf{tag}{pname}Coord",
+                  ", ".join(f"{v:.4f}" for v in c) if c else "---")
+        # 便于正文直接引用的可读量
+        d1 = ls["d1"]
+        s("lossSurfOneCritCount", str(len(d1["critical"])))
+        crs = sorted(c for c in d1["critical"] if c != 0.0)
+        s("lossSurfOneCritPos", f"{crs[-1]:.4f}" if crs else "---")
+        s("lossSurfOneCritNeg", f"{crs[0]:.4f}" if crs else "---")
+        s("lossSurfOneCritCountNonzero", str(len(crs)))
+        z = next(p for p in d1["points"] if abs(p["coord"][0]) < 1e-12)
+        s("lossSurfOneZeroLoss", f"{z['loss']:.4f}")
+        mn = next(p for p in d1["points"] if p.get("is_min"))
+        s("lossSurfOneMinLoss", f"{mn['loss']:.4f}")
+        s("lossSurfTwoInfLoss", f"{ls['d2']['points'][1]['loss']:.4f}")
+        s("lossSurfTwoCritLoss", f"{ls['d2']['points'][0]['loss']:.4f}")
+        s("lossSurfTwoOriginGrad", sci(ls['d2']['points'][0]['gradnorm']))
+        s("lossSurfThreeMinWone", f"{ls['d3']['points'][1]['coord'][0]:.4f}")
+        s("lossSurfThreeMinWtwo", f"{ls['d3']['points'][1]['coord'][1]:.4f}")
+        s("lossSurfThreeMinV", f"{ls['d3']['points'][1]['coord'][2]:.4f}")
+        tw = ls.get("twosample")
+        if tw:
+            s("lossSurfTwoSampleResidual", sci(tw["residual"]))
+
+    # ---------- 代数几何侧的宏（tab_algebraic 正文引用 + 实数点 + 初始化探针） ----------
+    # 数据源：experiments/algebraic_table.json（dim/degree）、
+    #         experiments/algebraic_real_points.json（实数临界点个数）、
+    #         experiments/init_probe.json（初始化断言）。
+    # 正文里的 dim I / |I| / 「几个复解里几个是实的」/ 初始化结论全部引用这里的宏。
+    _exp = Path(__file__).resolve().parent
+
+    alg_path = _exp / "algebraic_table.json"
+    if alg_path.exists():
+        alg = {r["label"]: r for r in json.loads(alg_path.read_text(encoding="utf-8"))}
+        # dim / degree 逐行宏：宏名只能含字母，标签里的数字改写为词缀
+        for lab, tag in [("plain-depth1-m1-n2", "PlainMoneNtwo"),
+                         ("plain-depth1-m1-n3", "PlainMoneNthree"),
+                         ("plain-depth1-m2-n2", "PlainMtwoNtwo"),
+                         ("plain-depth2-w1", "PlainDepthTwo"),
+                         ("residual-scalar-x1/2-y1", "ResidualScalar"),
+                         ("composite-residual", "CompositeResidualOnly"),
+                         ("composite-proj-only", "CompositeProjOnly"),
+                         ("composite-residual-proj", "CompositeResidualProj")]:
+            r = alg.get(lab)
+            if r:
+                s(f"alg{tag}Dim", str(r["dim"]))
+                s(f"alg{tag}Vars", str(r["nvars"]))
+                deg = r.get("degree")
+                s(f"alg{tag}Degree", "---" if deg in (None, "0") else str(deg))
+        # 最常引用的两个数
+        if "plain-depth1-m1-n2" in alg:
+            s("algPlainDim", str(alg["plain-depth1-m1-n2"]["dim"]))
+            s("algPlainDegree", str(alg["plain-depth1-m1-n2"]["degree"]))
+        if "plain-depth1-m1-n3" in alg:
+            s("algPlainNthreeDegree", str(alg["plain-depth1-m1-n3"]["degree"]))
+        if "composite-residual" in alg:
+            s("algCompositeResidualDim", str(alg["composite-residual"]["dim"]))
+        if "composite-proj-only" in alg:
+            s("algCompositeProjDim", str(alg["composite-proj-only"]["dim"]))
+        if "composite-residual-proj" in alg:
+            s("algCompositeBothDim", str(alg["composite-residual-proj"]["dim"]))
+
+    real_path = _exp / "algebraic_real_points.json"
+    if real_path.exists():
+        rp = {r["label"]: r for r in json.loads(real_path.read_text(encoding="utf-8"))}
+        r = rp.get("plain-depth1-m1-n2")
+        if r:
+            s("algPlainNreal", str(r["nreal"]))
+            s("algPlainNcomplex", str(r["ncomplex"]))
+        r = rp.get("plain-depth1-m1-n3")
+        if r:
+            s("algPlainNthreeNreal", str(r["nreal"]))
+            s("algPlainNthreeNcomplex", str(r["ncomplex"]))
+
+    probe_path = _exp / "init_probe.json"
+    if probe_path.exists():
+        pr = json.loads(probe_path.read_text(encoding="utf-8"))
+        inv = pr["projective_invariance"]
+        worst = max(r["absdiff"] for r in inv["scaled_before_projection"])
+        s("initProjInvarianceMaxDev", sci(worst))
+        s("initProjInvarianceLevels", str(len(inv["scaled_before_projection"])))
+        np_ = pr["norm_profile"]
+        s("initNormProjectedLast", f"{np_['projected_first_last'][1]:.4f}")
+        o = pr["origin_hessian"]
+        s("initOriginLoss", f"{o['loss_at_origin']:.4f}")
+        s("initOriginSumYSquared", f"{o['sum_y_squared']:.4f}")
+        s("initOriginHessianRank", str(o["hessian_rank"]))
+        s("initOriginHessianNonzero", "1" if not o.get("hessian_zero") else "0")
+        s("initOriginHessianIndefinite", "1" if o.get("hessian_indefinite") else "0")
+        ev = sorted(o["eigenvalues"])
+        s("initOriginHessianEigMax", f"{ev[-1]:.4f}")
+        s("initOriginHessianEigMin", f"{ev[0]:.4f}")
+        s("initOriginHessianOffDiag", f"{abs(o['hessian'][0][1]):.4f}")
+        s("initOriginHessianAnalyticMatches", "1" if o.get("analytic_matches") else "0")
+        cz = pr["residual_zero_init_identity"]
+        s("initResidualJacDev", sci(cz["jacobian_max_dev_from_identity"]))
+        s("initResidualBranchJacNorm", sci(cz["branch_jacobian_norm"]))
+        dg = pr.get("depth_gradient")
+        if dg:
+            s("initGradDepth", str(dg["depth"]))
+            s("initGradWidth", str(dg["width"]))
+            s("initGradIdentityRef", f"{pr['depth_gradient_identity_ref']:.4f}")
+            s("initGradZeroInitExact", "1" if pr["depth_gradient_zero_init_exact_identity"] else "0")
+            for row in dg["scales"]:
+                sc = row["branch_init"]
+                tag = ("Zero" if sc == 0 else
+                       "Small" if sc < 0.1 else
+                       "Mid" if sc < 1.0 else "Large")
+                s(f"initGrad{tag}Norm",
+                  "NaN" if row["median_grad_norm"] is None
+                  else f"{row['median_grad_norm']:.4f}")
+                s(f"initGrad{tag}Finite", f"{row['n_finite']}/{row['n_total']}")
+            _z = next((r for r in dg["scales"] if r["branch_init"] == 0), None)
+            _l = next((r for r in dg["scales"] if r["branch_init"] == 1.0), None)
+            if _z and _l and _z["median_grad_norm"] and _l["median_grad_norm"]:
+                s("initGradLargeOverIdentity",
+                  sci(_l["median_grad_norm"] / _z["median_grad_norm"]))
+
+    # ---------- Bertini 侧的宏（tab:bertini 正文引用） ----------
+    # 数据源：experiments/bertini_decomp.json（不可约分解 + 逐 component 的
+    #         loss / 零特征值个数），由 experiments/bertini_decomp.py 驱动
+    #         Bertini v1.6 写出。正文绝不手写这些数字。
+    bert_path = _exp / "bertini_decomp.json"
+    if bert_path.exists():
+        bd = {r["label"]: r for r in json.loads(bert_path.read_text(encoding="utf-8"))}
+
+        def _comps(lab, pole=False):
+            r = bd.get(lab)
+            if not r or r.get("status") != "ok":
+                return []
+            return [c for c in r["components"]
+                    if bool(c.get("pole_only")) == pole]
+
+        allc = [c for lab in bd for c in _comps(lab)]
+        s("algBertiniNcomp", str(len(allc)))
+        ok = [r for r in bd.values() if r.get("status") == "ok"]
+        s("algBertiniMaxTrainParams",
+          str(max((r.get("ntrain") or 0) for r in ok)) if ok else "---")
+        s("algBertiniMaxSecs",
+          "%.0f" % max((r.get("secs") or 0.0) for r in ok) if ok else "---")
+        s("algBertiniNsystems", str(len(ok)))
+        # 极点伪解（清分母引入）
+        npole = sum(1 for lab in bd for c in _comps(lab, pole=True))
+        s("algBertiniNpole", str(npole))
+
+        # %H2：所有非极点 component 上 loss 均恒定（spread 在舍入量级）
+        spreads = [c.get("loss_spread_rel") for c in allc
+                   if c.get("loss_spread_rel") is not None]
+        # H2 的真/假不写成 "1"/"0" 宏：正文里会渲染成裸的 "(1)"。
+        # 结论改由 analyze.py 在表 caption 里按 JSON 判定后成句。
+        # %H3：零特征值个数 == 维数（物理训练参数子空间）
+
+        # plain m=1,n=2：零维分量个数（应与 |I| 一致）、loss 值
+        c0 = _comps("plain-depth1-m1-n2")
+        s("algBertiniPlainNcomp", str(len(c0)))
+        lss = sorted({round(c["loss_mean"][0], 6) for c in c0 if c.get("loss_mean")})
+        if "plain-depth1-m1-n2" in bd:
+            s("algBertiniPlainLoss",
+              "%.4f" % bd["plain-depth1-m1-n2"]["origin"]["loss"][0])
+        # plain m=1,n=3：分量 loss（原点值 / 实极小值）
+        c1 = _comps("plain-depth1-m1-n3")
+        if c1:
+            lv = sorted({round(c["loss_mean"][0], 6) for c in c1 if c.get("loss_mean")})
+            if lv:
+                s("algBertiniNthreeLoss", "%.4f" % lv[-1])
+                if len(lv) > 1:
+                    s("algBertiniNthreeMinLoss", "%.4f" % lv[0])
+        # plain m=2,n=2：正维分量的维数/次数
+        c2 = [c for c in _comps("plain-depth1-m2-n2") if int(c["dim"]) > 0]
+        if c2:
+            s("algBertiniMtwoDim", str(c2[0]["dim"]))
+            s("algBertiniMtwoDegree", str(c2[0]["degree"]))
+        # cubic 臂：正维分量的 loss（= 100/169 量级）
+        cc = [c for c in _comps("cubic-depth1-m1-n2") if int(c["dim"]) > 0]
+        if cc and cc[0].get("loss_mean"):
+            s("algBertiniCubicDim", str(cc[0]["dim"]))
+            s("algBertiniCubicLoss", "%.8f" % cc[0]["loss_mean"][0])
+        # 所有真 component 的 witness 点上 |grad L| 的最大值（H2/H3 的数值前提）
+        gmax = 0.0
+        npts = 0
+        for lab, r in bd.items():
+            if r.get("status") != "ok":
+                continue
+            for c in r["components"]:
+                if c.get("pole_only"):
+                    continue
+                for pt in (c.get("points") or []):
+                    g = pt.get("grad_norm")
+                    if g is None or pt.get("pole") or not pt.get("defined", True):
+                        continue
+                    gmax = max(gmax, float(g)); npts += 1
+        if npts:
+            s("algBertiniGradMax", sci(gmax))
+        s("algBertiniNprobed", str(npts))
+        # H2 的最坏相对散布（真 component）
+        spmax = max((c.get("loss_spread_rel") or 0.0)
+                    for c in allc) if allc else 0.0
+        s("algBertiniSpreadMax", sci(spmax))
+
+        # proj 臂：真分量的维数/次数 + 极点个数 + Bézout
+        cp = _comps("proj-m1-n1")
+        rp = bd.get("proj-m1-n1")
+        if cp:
+            s("algBertiniProjDim", str(cp[0]["dim"]))
+            s("algBertiniProjDegree", str(cp[0]["degree"]))
+            s("algBertiniProjNcomp", str(len(cp)))
+        if rp:
+            s("algBertiniProjPole", str(len(_comps("proj-m1-n1", pole=True))))
+            s("algBertiniProjBezout", str(rp.get("bezout", "---")))
+            s("algBertiniProjSecs", "%.1f" % (rp.get("secs") or 0.0))
+
+    # 两样本问题上「最佳直线」的下确界 100/169：与 loss_surface.json 的值比对后
+    # 以精确分式形式给出，供正文排版成 \frac{100}{169}。
+    if ls_path.exists():
+        _inf = ls["d2"]["points"][1]["loss"]
+        if abs(_inf - 100.0 / 169.0) < 1e-12:
+            s("algInfNum", "100")
+            s("algInfDen", "169")
+
     lines = [
         "% ============================================================",
         "% 由 experiments/make_macros.py 从实验 JSON 自动生成。",
@@ -481,6 +854,7 @@ space special sf sl small subsection subsubsection subcaption subfloat
 setcounter section sec ref rVert right rule raggedright approx author bf
 tanh hypersetup geometry columnwidth in hat neq eqref newcolumntype
 text exp ell geq ge otimessm nc Phi
+dim langle rangle noindent
 """.split())
 
 

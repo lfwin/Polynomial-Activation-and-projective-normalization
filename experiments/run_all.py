@@ -264,6 +264,47 @@ def build_groups():
             g.append(cfg)
     G["depth_very"] = g
 
+    # ---- residual_mnist：多项式激活 + 恒等残差，**不含任何归一化** ----
+    # 主线：论文里无归一化的 poly 在浅层尚可、到 L30 即塌成常数预测器。
+    # 这里问一个独立的问题：只加恒等残差（不加任何 normalization），
+    # 极深网络能不能重新训起来？答案是能，且 100--300 层基本平。
+    #
+    # 两种放置方式（首层 784->128 维度不匹配，不做 skip）：
+    #   none  h^i = f(W^i h^{i-1})                纯多项式
+    #   r1    h^i = f(W^i h^{i-1}) + h^{i-1}      恒等残差，求和后不再归一化
+    # 两种初始化：
+    #   xavier 论文默认（W 元素量级 1/sqrt(dim)，残差是"可训练扰动"）
+    #   id     截断单位阵 + 0.1 倍 xavier 扰动（让每层接近恒等映射）
+    #
+    # 该组单独放在 residual_mnist/ 目录，并在 analyze/make_macros 里被
+    # _SOLO_GROUPS 排除，避免 L100 的记录污染主网格的按深度查询。
+    g = []
+    for mode in ["none", "r1"]:
+        for initm in ["xavier", "id"]:
+            for s in [42, 43, 44, 45]:
+                cfg = base(activation="poly", norm="none", depth=100,
+                           dataset="mnist", out="residual_mnist",
+                           residual=mode, init_mode=initm, seed=s,
+                           tag=f"mnist-L100-poly-res{mode}-{initm}")
+                g.append(cfg)
+    # 深度扫描（xavier，2 种子）：看残差把"可训练深度"推到多远
+    for d in [10, 50, 200, 300]:
+        for mode in ["none", "r1"]:
+            for s in [42, 43]:
+                cfg = base(activation="poly", norm="none", depth=d,
+                           dataset="mnist", out="residual_mnist",
+                           residual=mode, init_mode="xavier", seed=s,
+                           tag=f"mnist-L{d}-poly-resdepth")
+                g.append(cfg)
+    # 现代默认激活的对照：ReLU + 残差，同样无归一化
+    for s in [42, 43]:
+        cfg = base(activation="relu", norm="none", depth=100,
+                   dataset="mnist", out="residual_mnist",
+                   residual="r1", init_mode="xavier", seed=s,
+                   tag="mnist-L100-relu-resr1")
+        g.append(cfg)
+    G["residual_mnist"] = g
+
     return G
 
 
@@ -288,10 +329,17 @@ def _expected_file(cfg):
     """
     tag = f"{cfg['tag']}_" if cfg.get("tag") else ""
     norm_pos = "-pre" if cfg.get("norm_pos", "post") == "pre" else ""
+    # 残差/初始化仅在非默认时进入文件名，与 harness.py 的 cid 拼接保持逐字一致。
+    res_sfx = ""
+    if cfg.get("residual", "none") != "none":
+        res_sfx += f"-{cfg['residual']}"
+    if cfg.get("init_mode", "xavier") != "xavier":
+        res_sfx += f"-{cfg['init_mode']}"
     return (
         f"{tag}{cfg.get('dataset', 'mnist')}-{cfg.get('synth_name', 'rings')}-"
         f"{cfg.get('activation', 'relu')}-d{cfg.get('degree', 3)}-"
-        f"lam{cfg.get('lam', 0.01):g}-{cfg.get('norm', 'none')}{norm_pos}-"
+        f"lam{cfg.get('lam', 0.01):g}-{cfg.get('norm', 'none')}{norm_pos}"
+        f"{res_sfx}-"
         f"L{cfg.get('depth', 10)}-H{cfg.get('hidden', 128)}-"
         f"lr{cfg.get('lr', 1e-3):g}-e{cfg.get('epochs', 10)}-s{cfg.get('seed', 42)}"
     )
@@ -309,6 +357,7 @@ def cfg_to_cmd(cfg):
         "synth_name": "--synth-name", "synth_n": "--synth-n",
         "synth_seed": "--synth-seed", "in_dim": "--in-dim", "tag": "--tag",
         "lpoly_degree": "--lpoly-degree", "bspline_grid": "--bspline-grid",
+        "residual": "--residual", "init_mode": "--init",
     }
     for k, flag in mapping.items():
         if k in cfg and cfg[k] is not None:

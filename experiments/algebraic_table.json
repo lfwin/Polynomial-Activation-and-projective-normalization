@@ -1,0 +1,118 @@
+[
+ {
+  "label": "plain-depth1-m1-n2",
+  "nvars": 2,
+  "dim": "0",
+  "note": "",
+  "maxdeg": 7,
+  "secs_dim": 0.0,
+  "degree": "5",
+  "secs_degree": 0.0
+ },
+ {
+  "label": "plain-depth1-m1-n3",
+  "nvars": 2,
+  "dim": "0",
+  "note": "",
+  "maxdeg": 7,
+  "secs_dim": 0.0,
+  "degree": "5",
+  "secs_degree": 0.0
+ },
+ {
+  "label": "plain-depth1-m2-n2",
+  "nvars": 4,
+  "dim": "2",
+  "note": "",
+  "maxdeg": 7,
+  "secs_dim": 0.0
+ },
+ {
+  "label": "plain-depth2-w1",
+  "nvars": 3,
+  "dim": "1",
+  "note": "",
+  "maxdeg": 25,
+  "secs_dim": 75.37
+ },
+ {
+  "label": "cubic-depth1-m1-n2",
+  "nvars": 2,
+  "dim": "1",
+  "note": "",
+  "maxdeg": 3,
+  "secs_dim": 0.0
+ },
+ {
+  "label": "cubic-depth1-m1-n3",
+  "nvars": 2,
+  "dim": "1",
+  "note": "",
+  "maxdeg": 3,
+  "secs_dim": 0.0
+ },
+ {
+  "label": "cubic-depth1-m2-n2",
+  "nvars": 4,
+  "dim": "3",
+  "note": "",
+  "maxdeg": 3,
+  "secs_dim": 0.0
+ },
+ {
+  "label": "residual-scalar-x1/2-y1",
+  "nvars": 3,
+  "dim": "2",
+  "note": "",
+  "maxdeg": 25,
+  "secs_dim": 0.0
+ },
+ {
+  "label": "residual-scalar-x2-y3/10",
+  "nvars": 3,
+  "dim": "2",
+  "note": "",
+  "maxdeg": 25,
+  "secs_dim": 0.0
+ },
+ {
+  "label": "proj-m1-n1",
+  "nvars": 3,
+  "dim": "1",
+  "note": "",
+  "maxdeg": 13,
+  "secs_dim": 0.0
+ },
+ {
+  "label": "proj-m2-n1",
+  "nvars": 5,
+  "dim": "3",
+  "note": "",
+  "maxdeg": 13,
+  "secs_dim": 0.0
+ },
+ {
+  "label": "composite-residual",
+  "nvars": 6,
+  "dim": "5",
+  "note": "",
+  "maxdeg": 25,
+  "secs_dim": 0.0
+ },
+ {
+  "label": "composite-residual-proj",
+  "nvars": 7,
+  "dim": "5",
+  "note": "",
+  "maxdeg": 49,
+  "secs_dim": 0.16
+ },
+ {
+  "label": "composite-proj-only",
+  "nvars": 7,
+  "dim": "5",
+  "note": "",
+  "maxdeg": 49,
+  "secs_dim": 0.02
+ }
+]

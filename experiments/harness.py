@@ -213,6 +213,32 @@ GATE_ACTS = {
 }
 
 
+def _near_identity_(weight, seed, layer_idx, eps=0.1, init_seed=0):
+    """近恒等初始化：截断单位阵 + eps 倍 xavier 幅度的小随机扰动。
+
+    W = I[:out, :in] + eps * U(-b, b)，b = sqrt(6 / (out + in))，
+    逐层用独立的 torch.Generator 生成 U，因此结果只依赖 (seed, layer_idx)，
+    与全局 RNG 状态、线程数、进程调度无关（诊断前向不会改变它）。
+
+    动机：恒等残差希望 h^i ≈ h^{i-1}，即每层近似恒等映射；xavier 初始化
+    下 W 的元素量级为 1/sqrt(dim)，poly 的立方项在该尺度下远小于一次项，
+    深层堆叠后既非恒等也不再随机，这是 L^3 直接退化成常数预测器的一个候选
+    解释（与尺度爆炸并列，二者在本研究的设置里同时存在）。
+    """
+    out, inn = weight.shape
+    W = torch.zeros(out, inn)
+    d = min(out, inn)
+    W[torch.arange(d), torch.arange(d)] = 1.0
+    # seed=None（构造函数里首次初始化）时退化为固定种子 0；命令行路径会用
+    # --seed 显式重放一次 reset_parameters()，因此这里的取值不影响结果。
+    sd = int(seed) if seed is not None else 0
+    g = torch.Generator().manual_seed(sd * 1000 + int(layer_idx) + int(init_seed))
+    bound = (6.0 / (out + inn)) ** 0.5
+    R = torch.empty(out, inn).uniform_(-bound, bound, generator=g)
+    with torch.no_grad():
+        weight.copy_(W + eps * R)
+
+
 # ============================================================
 # 归一化层
 # ============================================================
@@ -264,18 +290,25 @@ def make_norm(name, dim):
 class Net(nn.Module):
     def __init__(self, depth=10, hidden=128, num_classes=10, activation="relu",
                  degree=3, lam=0.01, norm="none", norm_pos="post",
-                 in_dim=784, lpoly_degree=6, bspline_grid=8):
+                 in_dim=784, lpoly_degree=6, bspline_grid=8,
+                 residual="none", init="xavier"):
         super().__init__()
         if depth < 2:
             raise ValueError("depth 至少为 2")
         if norm_pos not in ("pre", "post"):
             raise ValueError("norm_pos ∈ {pre, post}")
+        if residual not in ("none", "r1"):
+            raise ValueError("residual ∈ {none, r1}")
+        if init not in ("xavier", "id"):
+            raise ValueError("init ∈ {xavier, id}")
 
         self.depth = depth
         self.hidden = hidden
         self.activation_name = activation
         self.norm_name = norm
         self.norm_pos = norm_pos
+        self.residual = residual
+        self.init = init
         self.is_gated = activation in GATE_ACTS
 
         self.blocks = nn.ModuleList()
@@ -311,10 +344,13 @@ class Net(nn.Module):
         self._in_dims = [in_dim] + [width] * (depth - 2)
         self.reset_parameters()
 
-    def reset_parameters(self):
-        for block in self.blocks:
+    def reset_parameters(self, seed=None):
+        for i, block in enumerate(self.blocks):
             for lin in block.values():
-                nn.init.xavier_uniform_(lin.weight)
+                if self.init == "id":
+                    _near_identity_(lin.weight, seed, i)
+                else:
+                    nn.init.xavier_uniform_(lin.weight)
                 nn.init.zeros_(lin.bias)
         nn.init.xavier_uniform_(self.final.weight)
         nn.init.zeros_(self.final.bias)
@@ -340,6 +376,10 @@ class Net(nn.Module):
                 x = self.act(z)
                 if norm is not None and self.norm_pos == "post":
                     x = norm(x)
+                # 恒等残差：h^i = π(f(W^i h^{i-1})) + h^{i-1}，且求和后不再归一化。
+                # 首层 784 -> H 维度不匹配，故从第二个隐层开始 skip（i >= 1）。
+                if self.residual == "r1" and i > 0:
+                    x = x + features[-1]
             features.append(x)
         logits = self.final(x)
         return (logits, features) if return_features else logits
@@ -589,6 +629,12 @@ def main():
     p.add_argument("--bspline-grid", type=int, default=8)
     p.add_argument("--norm", default="none")
     p.add_argument("--norm-pos", default="post", choices=["pre", "post"])
+    # 恒等残差（R1）：h^i = π(f(W^i h^{i-1})) + h^{i-1}，求和后不再归一化。
+    # 默认 none 保证所有既有配置的输出逐位不变。
+    p.add_argument("--residual", default="none", choices=["none", "r1"])
+    # 初始化：xavier（论文默认）或 id（截断单位阵 + 0.1 倍 xavier 扰动）。
+    p.add_argument("--init", dest="init_mode", default="xavier",
+                   choices=["xavier", "id"])
     p.add_argument("--depth", type=int, default=10)
     p.add_argument("--hidden", type=int, default=128)
     p.add_argument("--epochs", type=int, default=10)
@@ -636,7 +682,12 @@ def main():
                 degree=args.degree, lam=args.lam, norm=args.norm,
                 norm_pos=args.norm_pos,
                 in_dim=in_dim, lpoly_degree=args.lpoly_degree,
-                bspline_grid=args.bspline_grid).to(device)
+                bspline_grid=args.bspline_grid,
+                residual=args.residual, init=args.init_mode).to(device)
+    if args.init_mode == "id":
+        # 近恒等初始化必须显式重放一次：__init__ 里的默认 xavier 已经消耗过
+        # 全局 RNG，重放保证三种初始化下后续的 shuffle / 采样序列一致。
+        model.reset_parameters(seed=args.seed)
 
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr,
@@ -682,9 +733,17 @@ def main():
         grad_end, act_end, actstd_end = diagnostics(model, diag_loader, device)
 
     tag = f"{args.tag}_" if args.tag else ""
+    # 残差/初始化仅在非默认时进入文件名与 config_id：既有配置的 cid 逐字不变，
+    # 不会因新增两轴而重命名、重跑。
+    res_sfx = ""
+    if args.residual != "none":
+        res_sfx += f"-{args.residual}"
+    if args.init_mode != "xavier":
+        res_sfx += f"-{args.init_mode}"
     cid = (f"{tag}{args.dataset}-{args.synth_name}-"
            f"{args.activation}-d{args.degree}-lam{args.lam:g}-{args.norm}"
            f"{'-pre' if args.norm_pos == 'pre' else ''}"
+           f"{res_sfx}"
            f"-L{args.depth}-H{args.hidden}-"
            f"lr{args.lr:g}-e{args.epochs}-s{args.seed}")
 
