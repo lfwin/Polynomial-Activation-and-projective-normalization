@@ -13,6 +13,7 @@
 """
 import argparse
 import os
+import pathlib
 import subprocess
 import sys
 import json
@@ -340,6 +341,37 @@ def build_groups():
                    residual="none", init_mode="diag", seed=42,
                    tag=f"mnist-L{d}-purepoly-l2-diag")
         g.append(cfg)
+    # 初始化轴 2（diag0）：首层 784->128 无法做成真对角阵，若强行"对角"只保留
+    # 前 128 个输入像素，MNIST 顶部约 2/3 的图片那里全黑 -> 隐层恒为 0 ->
+    # L2 反向除以零范数 -> 第 1 步 nan（见 init="diag"）。这里对非方阵层改用
+    # 随机初始化、方阵隐层保持 W = diag(1 + 0.1 U(-1,1))。
+    # 效果：L10/30/50 = 93.06/92.78/91.87%（对比纯 diag 全 9.80%、xavier 在
+    # L50 已崩到 11.35%），把可训练深度推到 ~50；L100 仍塌（13.31%），
+    # 层间梯度 ~6e-10。两种种子一致（L50 91.87/92.32，L100 13.31/11.95）。
+    for d in [10, 30, 50, 100]:
+        cfg = base(activation="poly", norm="l2", depth=d, dataset="mnist",
+                   out="pure_poly_mnist", clamp="none", no_bias=True,
+                   residual="none", init_mode="diag0", seed=42,
+                   tag=f"mnist-L{d}-purepoly-l2-diag0")
+        g.append(cfg)
+    # 可学习三次激活 a + b z + c z^2 + d z^3（a,b,c,d 逐通道可训练），
+    # 无 bias、无 clamp；系数初始 a=0,b=1,c=0,d=0.01（= 固定版 z+0.01z^3 的起点）。
+    # 2x2：有无 projective norm(l2) x 有无恒等残差(r1)，深度 50 与 100。
+    # 结论：projective norm 与残差必须同时在场，缺一不可。
+    #   l2 + r1   : L50 96.9%  L100 97.60%   <- 唯一能到 100 层的组合
+    #   l2 无残差 : L50 96.35% L100 11.35%
+    #   r1 无归一化: L50/L100 均 9.80%（前向第 12 层溢出）
+    # 可学习激活比固定激活略好（97.60% vs 97.5%），但让残差路径更脆弱：
+    # 系数离开初始点后等效 Lipschitz 常数变大，无归一化时几何级数直接爆掉。
+    for d in [50, 100]:
+        for norm, res in [("l2", "none"), ("l2", "r1"),
+                          ("none", "r1"), ("none", "none")]:
+            cfg = base(activation="poly_learn", lam=0.01, norm=norm, depth=d,
+                       dataset="mnist", out="pure_poly_mnist", clamp="none",
+                       no_bias=True, residual=res, init_mode="xavier",
+                       coeff_init="identity", seed=42,
+                       tag=f"mnist-L{d}-polylearn-{norm}-{res}")
+            g.append(cfg)
     G["pure_poly_mnist"] = g
 
     return G
@@ -381,6 +413,8 @@ def _expected_file(cfg):
         res_sfx += "-noclamp"
     elif float(clamp) != 10.0:
         res_sfx += f"-clamp{float(clamp):g}"
+    if cfg.get("coeff_init", "identity") != "identity":
+        res_sfx += f"-coeff{cfg['coeff_init']}"
     return (
         f"{tag}{cfg.get('dataset', 'mnist')}-{cfg.get('synth_name', 'rings')}-"
         f"{cfg.get('activation', 'relu')}-d{cfg.get('degree', 3)}-"
@@ -405,6 +439,7 @@ def cfg_to_cmd(cfg):
         "lpoly_degree": "--lpoly-degree", "bspline_grid": "--bspline-grid",
         "residual": "--residual", "init_mode": "--init",
         "clamp": "--clamp", "no_bias": "--no-bias",
+        "coeff_init": "--coeff-init",
     }
     for k, flag in mapping.items():
         if k in cfg and cfg[k] is not None:
@@ -423,7 +458,9 @@ def cfg_to_cmd(cfg):
         cmd += ["--legacy-loader"]
     if cfg.get("no_diagnostics"):
         cmd += ["--no-diagnostics"]
-    cmd += ["--out-dir", str(ROOT / "experiments" / out)]
+    # 记录相对路径（run_one 以 ROOT 为 cwd，相对路径同样可用）：
+    # 仓库约定不得把本机绝对路径写进配置/结果 JSON。
+    cmd += ["--out-dir", str(pathlib.PurePath("experiments") / out)]
     return cmd
 
 

@@ -65,8 +65,54 @@ class ProjectivePolynomial(nn.Module):
                 f"normalize={self.normalize}")
 
 
+class LearnableCubic(nn.Module):
+    """可学习三次激活：f(z) = a + b z + c z^2 + d z^3，a,b,c,d 逐通道可训练。
+
+    - 无 clamp：按用户要求不做截断。
+    - coeff_init="identity"：a=0, b=1, c=0, d=lam（复刻非学习版 z + lam z^3 的起点）。
+      coeff_init="uniform" ：a,b,c,d 都取 U(-1, 1)。
+    - bias 指线性层偏置，与此处的常数项 a 无关。
+    """
+
+    def __init__(self, hidden, lam=0.01, coeff_init="identity", init_seed=None,
+                 **kw):
+        super().__init__()
+        self.hidden_dim = int(hidden)
+        self.lam = float(lam)
+        self.coeff_init = coeff_init
+        self.init_seed = 0 if init_seed is None else int(init_seed)
+        n = self.hidden_dim
+        self.a = nn.Parameter(torch.zeros(n))
+        self.b = nn.Parameter(torch.ones(n))
+        self.c = nn.Parameter(torch.zeros(n))
+        self.d = nn.Parameter(torch.full((n,), self.lam))
+        self.reset_coeffs()
+
+    def reset_coeffs(self, seed=None):
+        """按 coeff_init 重放系数初始化（可随 seed 复现）。"""
+        sd = self.init_seed if seed is None else int(seed)
+        g = torch.Generator().manual_seed(sd)
+        n = self.hidden_dim
+        if self.coeff_init == "uniform":
+            vals = [torch.empty(n).uniform_(-1.0, 1.0, generator=g)
+                    for _ in range(4)]
+        else:
+            vals = [torch.zeros(n), torch.ones(n), torch.zeros(n),
+                    torch.full((n,), self.lam)]
+        for prm, v in zip((self.a, self.b, self.c, self.d), vals):
+            with torch.no_grad():
+                prm.copy_(v)
+
+    def forward(self, z):
+        return self.a + self.b * z + self.c * z.pow(2) + self.d * z.pow(3)
+
+    def extra_repr(self):
+        return f"coeff_init={self.coeff_init}"
+
+
 def make_activation(name, degree=3, lam=0.01, lpoly_degree=6, bspline_grid=8,
-                    clamp=None):
+                    clamp=None, hidden=None, lam_seed=None,
+                    coeff_init="identity"):
     """逐元素激活。'poly' 不含 L2 归一化（归一化由 norm 参数控制）。
 
     clamp=None 时多项式不截断。
@@ -82,6 +128,10 @@ def make_activation(name, degree=3, lam=0.01, lpoly_degree=6, bspline_grid=8,
                                              clamp=clamp, normalize=False),
         "poly_proj": lambda: ProjectivePolynomial(degree=degree, lam=lam,
                                                   clamp=clamp, normalize=True),
+        # 可学习三次激活 a + b z + c z^2 + d z^3（a,b,c,d 逐通道可训练）
+        "poly_learn": lambda: LearnableCubic(hidden=hidden, lam=lam,
+                                             coeff_init=coeff_init,
+                                             init_seed=lam_seed),
         # 可学习多项式族（"不同多项式激活函数"的学习版对照）
         "legendre": lambda: LegendrePoly(degree=lpoly_degree, B=4.0),
         "bspline": lambda: BSpline(grid=bspline_grid, degree=3, B=2.0,
@@ -253,6 +303,10 @@ def _diag_perturbed_(weight, seed, layer_idx, eps=0.1, init_seed=0):
     填充。非对角为零意味着每层在恒等映射附近只做逐坐标缩放，层与层之间不
     混叠 —— 用来区分"接近恒等"和"层间随机混合"这两个因素。
     逐层用独立 generator，结果只依赖 (seed, layer_idx)。
+
+    注意：对非方阵（首层 784->128）"对角"只保留前 128 个输入，MNIST 顶部
+    约 2/3 的图片那里全黑，隐层输出恒为 0，L2 归一化的反向除以零范数会直接
+    出 nan。需要首层用随机矩阵时用 init="diag0"。
     """
     out, inn = weight.shape
     W = torch.zeros(out, inn)
@@ -263,6 +317,26 @@ def _diag_perturbed_(weight, seed, layer_idx, eps=0.1, init_seed=0):
     W[torch.arange(d), torch.arange(d)] = 1.0 + eps * jitter
     with torch.no_grad():
         weight.copy_(W)
+
+
+def _diag_or_random_(weight, seed, layer_idx, eps=0.1, init_seed=0):
+    """diag0：方阵层用对角初始化，非方阵层退化为随机（xavier）初始化。
+
+    动机：784->128 的首层无法做成真正的对角阵（长方阵），强行"对角"只保留
+    前 128 个输入像素，会让大量样本的隐层恒为 0。这里对非方阵层改用 xavier
+    随机初始化，方阵隐层仍保持 W = diag(1 + eps*U(-1,1))。
+    """
+    out, inn = weight.shape
+    if out != inn:
+        # 非方阵：随机初始化（xavier uniform，与默认臂同分布）
+        sd = int(seed) if seed is not None else 0
+        g = torch.Generator().manual_seed(sd * 1000 + int(layer_idx) + int(init_seed))
+        bound = (6.0 / (out + inn)) ** 0.5
+        W = torch.empty(out, inn).uniform_(-bound, bound, generator=g)
+        with torch.no_grad():
+            weight.copy_(W)
+        return
+    _diag_perturbed_(weight, seed, layer_idx, eps=eps, init_seed=init_seed)
 
 
 # ============================================================
@@ -317,7 +391,8 @@ class Net(nn.Module):
     def __init__(self, depth=10, hidden=128, num_classes=10, activation="relu",
                  degree=3, lam=0.01, norm="none", norm_pos="post",
                  in_dim=784, lpoly_degree=6, bspline_grid=8,
-                 residual="none", init="xavier", clamp=None, bias=True):
+                 residual="none", init="xavier", clamp=None, bias=True,
+                 coeff_init="identity"):
         super().__init__()
         if depth < 2:
             raise ValueError("depth 至少为 2")
@@ -325,8 +400,8 @@ class Net(nn.Module):
             raise ValueError("norm_pos ∈ {pre, post}")
         if residual not in ("none", "r1"):
             raise ValueError("residual ∈ {none, r1}")
-        if init not in ("xavier", "id", "diag"):
-            raise ValueError("init ∈ {xavier, id, diag}")
+        if init not in ("xavier", "id", "diag", "diag0"):
+            raise ValueError("init ∈ {xavier, id, diag, diag0}")
 
         self.depth = depth
         self.hidden = hidden
@@ -365,7 +440,9 @@ class Net(nn.Module):
                 prev = width
             self.act = make_activation(activation, degree=degree, lam=lam,
                                        lpoly_degree=lpoly_degree,
-                                       bspline_grid=bspline_grid, clamp=clamp)
+                                       bspline_grid=bspline_grid, clamp=clamp,
+                                       hidden=width, lam_seed=None,
+                                       coeff_init=coeff_init)
 
         self.width = width
         self.final = nn.Linear(width, num_classes, bias=bias)
@@ -373,12 +450,17 @@ class Net(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self, seed=None):
+        # 可学习激活的系数也随 seed 重放（否则不同 init 臂会共用同一组系数）。
+        if getattr(self, "activation_name", "") == "poly_learn":
+            self.act.reset_coeffs(seed=int(seed) if seed is not None else 0)
         for i, block in enumerate(self.blocks):
             for lin in block.values():
                 if self.init == "id":
                     _near_identity_(lin.weight, seed, i)
                 elif self.init == "diag":
                     _diag_perturbed_(lin.weight, seed, i)
+                elif self.init == "diag0":
+                    _diag_or_random_(lin.weight, seed, i)
                 else:
                     nn.init.xavier_uniform_(lin.weight)
                 if lin.bias is not None:
@@ -432,6 +514,9 @@ class Net(nn.Module):
             k = 2 if self.is_gated else 1
             total += k * 2 * ins[i] * w
         total += 2 * ins[-1] * self.final.out_features
+        if self.activation_name == "poly_learn":
+            # 每个激活元素 7 flops（b*z, c*z^2, d*z^3 三次乘 + 三次加 + 常数项）
+            total += 7 * sum(ins[:-1])
         return total
 
 
@@ -666,13 +751,16 @@ def main():
     p.add_argument("--residual", default="none", choices=["none", "r1"])
     # 初始化：xavier（论文默认）或 id（截断单位阵 + 0.1 倍 xavier 扰动）。
     p.add_argument("--init", dest="init_mode", default="xavier",
-                   choices=["xavier", "id", "diag"])
+                   choices=["xavier", "id", "diag", "diag0"])
     # 纯多项式设定：关掉截断（--clamp none）与偏置（--no-bias）。
     # 默认值保持 10.0 / 有偏置，既有配置的 cid 与输出逐位不变。
     p.add_argument("--clamp", default="10.0",
                    help="多项式激活的截断阈值；'none' 表示不截断")
     p.add_argument("--no-bias", action="store_true",
                    help="所有线性层不使用偏置")
+    p.add_argument("--coeff-init", dest="coeff_init", default="identity",
+                   choices=["identity", "uniform"],
+                   help="可学习三次激活 a,b,c,d 的初始化方式")
     p.add_argument("--depth", type=int, default=10)
     p.add_argument("--hidden", type=int, default=128)
     p.add_argument("--epochs", type=int, default=10)
@@ -727,8 +815,9 @@ def main():
                 in_dim=in_dim, lpoly_degree=args.lpoly_degree,
                 bspline_grid=args.bspline_grid,
                 residual=args.residual, init=args.init_mode,
-                clamp=args.clamp, bias=not args.no_bias).to(device)
-    if args.init_mode in ("id", "diag"):
+                clamp=args.clamp, bias=not args.no_bias,
+                coeff_init=args.coeff_init).to(device)
+    if args.init_mode in ("id", "diag", "diag0"):
         # 近恒等初始化必须显式重放一次：__init__ 里的默认 xavier 已经消耗过
         # 全局 RNG，重放保证三种初始化下后续的 shuffle / 采样序列一致。
         model.reset_parameters(seed=args.seed)
@@ -792,6 +881,8 @@ def main():
         res_sfx += "-noclamp"
     elif args.clamp != 10.0:
         res_sfx += f"-clamp{args.clamp:g}"
+    if args.coeff_init != "identity":
+        res_sfx += f"-coeff{args.coeff_init}"
     cid = (f"{tag}{args.dataset}-{args.synth_name}-"
            f"{args.activation}-d{args.degree}-lam{args.lam:g}-{args.norm}"
            f"{'-pre' if args.norm_pos == 'pre' else ''}"

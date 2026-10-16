@@ -7,7 +7,7 @@ of What Makes Deep Fully-Connected Networks Trainable*
 **Author:** Xiuyi Yang — fwinlee@gmail.com
 
 This repository contains the complete, self-contained experimental artifact for the paper:
-a unified training harness, all 351 experiment configurations, every raw result file, and the
+a unified training harness, all 363 experiment configurations, every raw result file, and the
 analysis code that turns raw JSON into tables, figures and every number that appears in the
 paper. Every number is generated from the raw results — none is typed by hand.
 
@@ -131,6 +131,42 @@ The conclusion is unchanged from the residual study above: the activation is not
 buys depth, scale control is. The projective map raises the trainable depth from ~15 to
 ~30; only an identity path (the residual `r1`) reaches 100 and beyond.
 
+### Learnable cubic activation (`poly_learn`)
+
+The activation is replaced by `a + b z + c z^2 + d z^3` with **per-channel trainable**
+`a, b, c, d`, initialised at `a=0, b=1, c=0, d=0.01` (the fixed `z + 0.01 z^3` start
+point). Still no bias, no clamp. A 2x2 over the projective normalisation and the identity
+residual, at depth 50 and 100:
+
+| depth | norm | residual | test acc. |
+|---|---|---|---|
+| 50 | l2 | none | 94.55 |
+| 50 | l2 | **r1** | **97.78** |
+| 50 | none | r1 | 9.80 (overflow) |
+| 50 | none | none | 9.80 (overflow) |
+| 100 | l2 | none | 11.35 |
+| 100 | l2 | **r1** | **97.60** |
+| 100 | none | r1 | 9.80 (overflow) |
+| 100 | none | none | 9.80 (overflow) |
+
+**The projective normalisation and the residual are individually useless here and jointly
+sufficient.** Either one alone at depth 100 collapses (11.35% without the residual, 9.80%
+with the residual but no normalisation); together they reach 97.60%, the best result in
+this repository, and the run converges properly (train 99.55%, per-class 96-99%).
+
+Two further observations:
+
+- The learnable activation is marginally better than the fixed one under this recipe
+  (97.60 vs 97.5 at depth 100) and clearly better without a residual at depth 50
+  (94.55 vs the fixed arm's 91.87).
+- It also makes the residual path *fragile*. Without normalisation the fixed activation
+  with a residual still reaches 94.26%, whereas the learnable version overflows in the
+  forward pass by layer 12. Trainable coefficients drift away from their initial point,
+  which raises the effective Lipschitz constant of the cubic; the residual then feeds that
+  amplified layer back into an already growing norm and the geometric series diverges. So
+  for a learnable polynomial the projective normalisation is not an option, it is a
+  precondition.
+
 ### Algebraic side: exact critical sets and Bertini decompositions
 
 The small-model claims are computed, not asserted. Exact rational arithmetic (Sage /
@@ -164,7 +200,7 @@ reported. The solver's scratch directory `experiments/bertini_runs/` is not comm
 ├── run.sh / run_experiments.sh               # wrapper for a single training run
 ├── experiments/
 │   ├── harness.py            # the unified training/eval harness (model, data, metrics)
-│   ├── run_all.py            # the full 351-config experiment grid + worker orchestration
+│   ├── run_all.py            # the full 363-config experiment grid + worker orchestration
 │   ├── analyze.py            # raw JSON -> paper/tables/*.tex + paper/figures/*.pdf
 │   ├── make_macros.py        # raw JSON -> paper/macros.tex (every number in the paper)
 │   ├── verify_fidelity.py    # bit-for-bit check against the original script
@@ -178,7 +214,7 @@ reported. The solver's scratch directory `experiments/bertini_runs/` is not comm
 │   ├── dump_bertini_raw.py   # bertini_runs/ scratch -> bertini_*.json
 │   ├── status.sh             # progress overview of the result directory
 │   ├── logs/                 # raw stdout of the experiment runs (evidence trail)
-│   └── <group>/*.json        # 351 raw result records, one file per configuration
+│   └── <group>/*.json        # 363 raw result records, one file per configuration
 └── (paper/ — built locally, not tracked; see "Reproducing" below)
 ```
 
@@ -203,8 +239,8 @@ Result groups under `experiments/`:
 | `ref_orig` / `ref_fidelity` | 1 + 1 | faithful reproduction of the original script |
 | `synth3` / `synth3_depth` / `synth3_norm` | 64 + 18 + 32 | synthetic diagnostic tasks |
 | `residual_mnist` | 34 | depth 100 identity-residual study + depth sweep to 300, no normalization |
-| `pure_poly_mnist` | 16 | pure polynomial, no bias / no clamp / no residual: depth 10-100 with and without the projective normalisation, plus identity-init arms |
-| **total** | **351** | |
+| `pure_poly_mnist` | 28 | pure polynomial, no bias / no clamp / no residual: depth 10-100 with and without the projective normalisation, plus identity-init arms |
+| **total** | **363** | |
 
 ---
 
@@ -252,7 +288,7 @@ hardcoded to a machine.
 # 1. Confirm the harness reproduces the original standalone script bit-for-bit
 python experiments/verify_fidelity.py          # expect 96.86%
 
-# 2. Run the full grid (351 configs). Pick --workers to match your core count.
+# 2. Run the full grid (363 configs). Pick --workers to match your core count.
 python experiments/run_all.py --group all --workers 8
 python experiments/run_all.py --list           # inspect groups without running
 
@@ -262,7 +298,7 @@ python experiments/analyze.py                  # -> paper/tables, paper/figures
 python experiments/make_macros.py --check      # -> paper/macros.tex + consistency check
 ```
 
-Step 3 needs no retraining: the 351 raw JSON records are committed, so all tables,
+Step 3 needs no retraining: the 363 raw JSON records are committed, so all tables,
 figures and number macros can be regenerated from a clean clone.
 
 The full grid is dominated by single-threaded training runs executed in parallel worker
@@ -273,7 +309,7 @@ processes; `--workers 8` is a safe default on a 20-core machine. To re-run one g
 
 ## 5. Reproducibility notes
 
-- **All 351 raw records are committed**, so every table and figure can be regenerated
+- **All 363 raw records are committed**, so every table and figure can be regenerated
   without retraining. `analyze.py` and `make_macros.py` read the JSON directly.
 - **No hand-written numbers in the paper.** The prose cites macros such as
   `\polyProjAcc` (95.93) and `\polyGap` (1.59) that are generated by `make_macros.py`;
